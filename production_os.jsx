@@ -400,6 +400,42 @@ tr:last-child td{border-bottom:none;}
 .auth-tab button{flex:1;padding:9px;font-size:15px;background:transparent;border:none;color:var(--t3);cursor:pointer;transition:all .15s;}
 .auth-tab button.on{background:var(--bg4);color:var(--t1);}
 
+/* ── LOGIN PAGE (full-screen gate) ── */
+.login-shell{display:flex;height:100vh;width:100vw;overflow:hidden;}
+.login-left{flex:1;display:flex;align-items:center;justify-content:center;background:var(--bg);position:relative;z-index:2;}
+.login-right{flex:1;position:relative;overflow:hidden;display:flex;align-items:center;justify-content:center;}
+.login-right-bg{position:absolute;inset:0;background:linear-gradient(135deg,#0d0d18 0%,#1a1028 40%,#0c1520 70%,#09090b 100%);opacity:.95;}
+.login-right-pattern{position:absolute;inset:0;background:repeating-linear-gradient(45deg,transparent,transparent 60px,rgba(201,168,76,.015) 60px,rgba(201,168,76,.015) 61px);pointer-events:none;}
+.login-right-content{position:relative;z-index:2;padding:48px;max-width:480px;text-align:left;}
+.login-card{width:100%;max-width:420px;padding:0 32px;}
+.login-brand{text-align:center;margin-bottom:36px;}
+.login-brand-name{font-family:"Cormorant Garamond",serif;font-size:42px;color:var(--gold2);font-weight:700;letter-spacing:.5px;line-height:1.1;}
+.login-brand-sub{font-size:14px;color:var(--t3);letter-spacing:3px;text-transform:uppercase;margin-top:6px;}
+.login-tabs{display:flex;border:1px solid var(--ln);border-radius:10px;overflow:hidden;margin-bottom:24px;background:var(--bg2);}
+.login-tabs button{flex:1;padding:11px 8px;font-size:14px;font-weight:500;background:transparent;border:none;color:var(--t3);cursor:pointer;transition:all .18s;font-family:'DM Sans',sans-serif;letter-spacing:.3px;}
+.login-tabs button.on{background:var(--gG);color:var(--gold2);box-shadow:inset 0 -2px 0 var(--gold);}
+.login-form{display:flex;flex-direction:column;gap:14px;}
+.login-input{width:100%;padding:12px 14px;border-radius:9px;border:1px solid var(--ln);background:var(--bg2);color:var(--t1);font-size:15px;font-family:'DM Sans',sans-serif;transition:border-color .15s,box-shadow .15s;outline:none;}
+.login-input:focus{border-color:rgba(201,168,76,.5);box-shadow:0 0 0 3px rgba(201,168,76,.08);}
+.login-input::placeholder{color:var(--t4);}
+.login-btn{width:100%;padding:13px;border-radius:9px;border:none;font-size:16px;font-weight:600;cursor:pointer;font-family:'DM Sans',sans-serif;transition:all .15s;letter-spacing:.4px;}
+.login-btn-gold{background:linear-gradient(135deg,var(--gold),#b8943e);color:var(--bg);box-shadow:0 2px 12px rgba(201,168,76,.25);}
+.login-btn-gold:hover{background:linear-gradient(135deg,var(--gold2),var(--gold));box-shadow:0 4px 20px rgba(201,168,76,.35);transform:translateY(-1px);}
+.login-btn-gold:disabled{opacity:.5;cursor:not-allowed;transform:none;box-shadow:none;}
+.login-btn-ghost{background:transparent;color:var(--t2);border:1px solid var(--ln);}
+.login-btn-ghost:hover{background:var(--bg3);border-color:var(--t4);}
+.login-divider{display:flex;align-items:center;gap:12px;margin:4px 0;color:var(--t4);font-size:13px;}
+.login-divider::before,.login-divider::after{content:"";flex:1;height:1px;background:var(--ln);}
+.login-error{background:rgba(208,80,80,.08);border:1px solid rgba(208,80,80,.25);border-radius:8px;padding:10px 14px;color:var(--red2);font-size:14px;}
+.login-success{background:rgba(74,173,117,.08);border:1px solid rgba(74,173,117,.25);border-radius:8px;padding:10px 14px;color:var(--green2);font-size:14px;}
+.login-features{list-style:none;padding:0;margin:0;}
+.login-features li{display:flex;align-items:flex-start;gap:10px;padding:10px 0;border-bottom:1px solid rgba(255,255,255,.04);font-size:15px;color:var(--t2);line-height:1.5;}
+.login-features li:last-child{border-bottom:none;}
+.login-feat-icon{width:28px;height:28px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:14px;flex-shrink:0;background:rgba(201,168,76,.08);border:1px solid rgba(201,168,76,.15);}
+.login-quote{margin-top:32px;padding:20px;border-left:2px solid rgba(201,168,76,.3);font-style:italic;color:var(--t3);font-size:15px;line-height:1.6;}
+.login-quote-author{color:var(--t4);font-size:13px;margin-top:8px;font-style:normal;}
+@media(max-width:900px){.login-right{display:none;}.login-left{flex:1;}}
+
 /* ── TEAM PANEL ── */
 .member-row{display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--bg3);border:1px solid var(--ln);border-radius:8px;margin-bottom:6px;}
 .member-role{padding:2px 8px;border-radius:20px;font-size:13px;font-family:"JetBrains Mono",monospace;}
@@ -9803,6 +9839,164 @@ function SyncBar({ state, dispatch, onSignIn, onSignOut, onSyncClick }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// LOGIN PAGE — full-screen auth gate
+// ═══════════════════════════════════════════════════════════════════
+function LoginPage({ onAuth }) {
+  const [tab, setTab] = useState("login"); // login | signup | waitlist
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [name, setName] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
+
+  const getSb = () => {
+    const cc = getSupabaseCreateClient();
+    if (!cc) throw new Error("Supabase SDK not loaded. Please refresh the page.");
+    const url = window.__DRAMA_SB_URL;
+    const key = window.__DRAMA_SB_KEY;
+    if (!url || !key) throw new Error("Supabase not configured.");
+    return cc(url, key);
+  };
+
+  const handleLogin = async () => {
+    setLoading(true); setError(""); setSuccess("");
+    try {
+      const sb = getSb();
+      const { data, error: e } = await sb.auth.signInWithPassword({ email, password });
+      if (e) throw e;
+      const user = { id: data.user.id, email: data.user.email, displayName: data.user.user_metadata?.display_name || email.split("@")[0], session: data.session };
+      localStorage.setItem("ds_session", JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token }));
+      onAuth(user);
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  const handleSignUp = async () => {
+    if (!password || password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    setLoading(true); setError(""); setSuccess("");
+    try {
+      const sb = getSb();
+      const { data, error: e } = await sb.auth.signUp({ email, password, options: { data: { display_name: name || email.split("@")[0] } } });
+      if (e) throw e;
+      if (data.session) {
+        const user = { id: data.user.id, email: data.user.email, displayName: data.user.user_metadata?.display_name || name || email.split("@")[0], session: data.session };
+        localStorage.setItem("ds_session", JSON.stringify({ access_token: data.session.access_token, refresh_token: data.session.refresh_token }));
+        onAuth(user);
+      } else {
+        setSuccess("Account created! Check your email to verify, then sign in.");
+        setTab("login");
+      }
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  const handleWaitlist = async () => {
+    if (!email.trim()) return;
+    setLoading(true); setError(""); setSuccess("");
+    try {
+      const sb = getSb();
+      const { error: e } = await sb.from("waitlist").insert({ email: email.trim().toLowerCase(), name: name.trim() || null, source: "app" });
+      if (e) {
+        if (e.code === "23505") { setSuccess("You're already on the waitlist! We'll be in touch soon."); }
+        else throw e;
+      } else {
+        setSuccess("You're on the list! We'll notify you when your spot opens up.");
+      }
+      setEmail(""); setName("");
+    } catch (e) { setError(e.message); }
+    setLoading(false);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter") {
+      if (tab === "login") handleLogin();
+      else if (tab === "signup") handleSignUp();
+      else if (tab === "waitlist") handleWaitlist();
+    }
+  };
+
+  return (
+    <div className="login-shell">
+      <div className="login-left">
+        <div className="login-card">
+          <div className="login-brand">
+            <div className="login-brand-name">Drama Studio</div>
+            <div className="login-brand-sub">Production OS</div>
+          </div>
+
+          <div className="login-tabs">
+            {[["login","Sign In"],["signup","Create Account"],["waitlist","Join Waitlist"]].map(([id,label])=>(
+              <button key={id} className={tab===id?"on":""} onClick={()=>{setTab(id);setError("");setSuccess("");}}>{label}</button>
+            ))}
+          </div>
+
+          <div className="login-form">
+            {error && <div className="login-error">{error}</div>}
+            {success && <div className="login-success">{success}</div>}
+
+            {(tab === "signup" || tab === "waitlist") && (
+              <input className="login-input" value={name} onChange={e=>setName(e.target.value)} onKeyDown={handleKeyDown} placeholder="Your name" autoComplete="name"/>
+            )}
+
+            <input className="login-input" type="email" value={email} onChange={e=>setEmail(e.target.value)} onKeyDown={handleKeyDown} placeholder="Email address" autoComplete="email"/>
+
+            {tab !== "waitlist" && (
+              <input className="login-input" type="password" value={password} onChange={e=>setPassword(e.target.value)} onKeyDown={handleKeyDown} placeholder="Password" autoComplete={tab==="login"?"current-password":"new-password"}/>
+            )}
+
+            {tab === "login" && (
+              <button className="login-btn login-btn-gold" disabled={loading || !email} onClick={handleLogin}>
+                {loading ? "Signing in..." : "Sign In"}
+              </button>
+            )}
+            {tab === "signup" && (
+              <button className="login-btn login-btn-gold" disabled={loading || !email || !password} onClick={handleSignUp}>
+                {loading ? "Creating account..." : "Create Account"}
+              </button>
+            )}
+            {tab === "waitlist" && (
+              <button className="login-btn login-btn-gold" disabled={loading || !email} onClick={handleWaitlist}>
+                {loading ? "Joining..." : "Join the Waitlist"}
+              </button>
+            )}
+
+            {tab === "waitlist" && (
+              <div style={{textAlign:"center",fontSize:13,color:"var(--t3)",marginTop:4,lineHeight:1.5}}>
+                Get early access when we open new spots. No spam, ever.
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
+      <div className="login-right">
+        <div className="login-right-bg"/>
+        <div className="login-right-pattern"/>
+        <div className="login-right-content">
+          <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:28,color:"var(--gold2)",fontWeight:700,marginBottom:8}}>
+            Build interactive dramas at scale
+          </div>
+          <div style={{fontSize:16,color:"var(--t2)",marginBottom:28,lineHeight:1.6}}>
+            AI-powered writing room, visual novel generation, multi-platform publishing — all in one production OS.
+          </div>
+          <ul className="login-features">
+            <li><span className="login-feat-icon">&#x2726;</span><div><strong style={{color:"var(--t1)"}}>AI Director</strong><br/>Claude-powered story generation, character bibles, and episode writing</div></li>
+            <li><span className="login-feat-icon">&#x1F3AC;</span><div><strong style={{color:"var(--t1)"}}>Visual Novel Engine</strong><br/>Generate cinematic panels with AI — 6 art styles, custom prompts</div></li>
+            <li><span className="login-feat-icon">&#x1F4E1;</span><div><strong style={{color:"var(--t1)"}}>Publish Everywhere</strong><br/>One-click distribution to YouTube, Apple TV, TikTok, and more</div></li>
+            <li><span className="login-feat-icon">&#x1F30A;</span><div><strong style={{color:"var(--t1)"}}>Ripple Engine</strong><br/>Temporal branching — every decision creates alternate timelines</div></li>
+          </ul>
+          <div className="login-quote">
+            "Inside the four most powerful fashion houses in the world, a 100-episode interactive drama unfolds."
+            <div className="login-quote-author">— The House of High Fashion, built with Drama Studio</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // AUTH MODAL
 // ═══════════════════════════════════════════════════════════════════
 function AuthModal({ supabaseUrl, supabaseKey, onSuccess, onClose }) {
@@ -13668,15 +13862,101 @@ function AutoQueueModal({ state, dispatch, onClose }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// SUPABASE CONFIG — set these to your project values
+// ═══════════════════════════════════════════════════════════════════
+const SUPABASE_URL = "https://iqbkinqsolxlgxpjcohr.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxYmtpbnFzb2x4bGd4cGpjb2hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM3MjczMDksImV4cCI6MjA1OTMwMzMwOX0.sLpMVsCfLpM2x0wPXXGxOC0J_sOcFxNLiEfMDBjJcKA";
+
+// Expose globally so LoginPage can use them without prop drilling
+window.__DRAMA_SB_URL = SUPABASE_URL;
+window.__DRAMA_SB_KEY = SUPABASE_ANON_KEY;
+
+// ═══════════════════════════════════════════════════════════════════
 // ROOT
 // ═══════════════════════════════════════════════════════════════════
 export default function App() {
+  // ── Auth gate — check for existing session on mount
+  const [authedUser, setAuthedUser] = useState(null);
+  const [authChecking, setAuthChecking] = useState(true);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const cc = getSupabaseCreateClient();
+        if (!cc) { setAuthChecking(false); return; }
+        const sb = cc(SUPABASE_URL, SUPABASE_ANON_KEY);
+        const { data: { session } } = await sb.auth.getSession();
+        if (session?.user) {
+          setAuthedUser({
+            id: session.user.id,
+            email: session.user.email,
+            displayName: session.user.user_metadata?.display_name || session.user.email?.split("@")[0],
+            session,
+          });
+        }
+        // Listen for auth changes (magic link, sign out from another tab, etc.)
+        const { data: { subscription } } = sb.auth.onAuthStateChange((event, session) => {
+          if (event === "SIGNED_IN" && session?.user) {
+            setAuthedUser({
+              id: session.user.id,
+              email: session.user.email,
+              displayName: session.user.user_metadata?.display_name || session.user.email?.split("@")[0],
+              session,
+            });
+          } else if (event === "SIGNED_OUT") {
+            setAuthedUser(null);
+          }
+        });
+        // Cleanup on unmount
+        window.__dramaAuthUnsub = () => subscription.unsubscribe();
+      } catch (e) {
+        console.warn("[Auth] Session restore failed:", e);
+      }
+      setAuthChecking(false);
+    })();
+    return () => { window.__dramaAuthUnsub?.(); };
+  }, []);
+
+  // Show loading state while checking auth
+  if (authChecking) {
+    return (
+      <>
+        <style>{CSS}</style>
+        <div style={{height:"100vh",display:"flex",alignItems:"center",justifyContent:"center",background:"var(--bg)"}}>
+          <div style={{textAlign:"center"}}>
+            <div style={{fontFamily:"'Cormorant Garamond',serif",fontSize:32,color:"var(--gold2)",fontWeight:700,marginBottom:8}}>Drama Studio</div>
+            <div style={{color:"var(--t3)",fontSize:14}}>Loading...</div>
+          </div>
+        </div>
+      </>
+    );
+  }
+
+  // Show login page if not authenticated
+  if (!authedUser) {
+    return (
+      <>
+        <style>{CSS}</style>
+        <LoginPage onAuth={(user) => setAuthedUser(user)} />
+      </>
+    );
+  }
+
+  return <AppMain authedUser={authedUser} onSignOut={() => {
+    const cc = getSupabaseCreateClient();
+    if (cc) { const sb = cc(SUPABASE_URL, SUPABASE_ANON_KEY); sb.auth.signOut(); }
+    localStorage.removeItem("ds_session");
+    setAuthedUser(null);
+  }} />;
+}
+
+function AppMain({ authedUser, onSignOut }) {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE, (s) => {
     try {
       const saved   = JSON.parse(localStorage.getItem("ds_state")||"{}");
       const sbSaved = JSON.parse(localStorage.getItem("ds_sb")||"{}");
       const gSaved  = JSON.parse(localStorage.getItem("ds_gemini")||"{}");
-      const base    = { ...s, apiKey: saved.apiKey||"", supabaseUrl: sbSaved.url||"", supabaseKey: sbSaved.key||"", geminiKey: gSaved.key||"" };
+      const base    = { ...s, apiKey: saved.apiKey||"", supabaseUrl: sbSaved.url||SUPABASE_URL, supabaseKey: sbSaved.key||SUPABASE_ANON_KEY, geminiKey: gSaved.key||"" };
 
       // Restore full state from localStorage if available
       const fullSaved = JSON.parse(localStorage.getItem("ds_full")||"{}");
@@ -13716,6 +13996,13 @@ export default function App() {
       };
     } catch { return s; }
   });
+
+  // ── Set current user from auth gate on mount
+  useEffect(() => {
+    if (authedUser) {
+      dispatch({ type: "SET_CURRENT_USER", user: { id: authedUser.id, email: authedUser.email, displayName: authedUser.displayName } });
+    }
+  }, [authedUser]);
 
   // ── On mount: restore VN panel images AND character avatars from IndexedDB
   useEffect(() => {
@@ -13964,7 +14251,7 @@ export default function App() {
             state={state}
             dispatch={dispatch}
             onSignIn={()=>setShowAuthModal(true)}
-            onSignOut={()=>dispatch({type:"SET_CURRENT_USER",user:null})}
+            onSignOut={()=>{dispatch({type:"SET_CURRENT_USER",user:null});onSignOut();}}
             onSyncClick={()=>setShowSyncModal(true)}
           />
 
