@@ -1,5 +1,11 @@
 {
+<<<<<<< HEAD
   "rewrites": [
     { "source": "/(.*)", "destination": "/index.html" }
   ]
+=======
+  "buildCommand": "npm run build",
+  "outputDirectory": "dist",
+  "rewrites": [{ "source": "/(.*)", "destination": "/" }]
+>>>>>>> covibing/task-e07f4324-3539-45b4-b554-8b862d8ca239
 }

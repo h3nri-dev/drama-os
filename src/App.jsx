@@ -13676,7 +13676,9 @@ export default function App() {
       const saved   = JSON.parse(localStorage.getItem("ds_state")||"{}");
       const sbSaved = JSON.parse(localStorage.getItem("ds_sb")||"{}");
       const gSaved  = JSON.parse(localStorage.getItem("ds_gemini")||"{}");
-      const base    = { ...s, apiKey: saved.apiKey||"", supabaseUrl: sbSaved.url||"", supabaseKey: sbSaved.key||"", geminiKey: gSaved.key||"" };
+      const envUrl  = import.meta.env.VITE_SUPABASE_URL  || "";
+      const envKey  = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+      const base    = { ...s, apiKey: saved.apiKey||"", supabaseUrl: sbSaved.url||envUrl, supabaseKey: sbSaved.key||envKey, geminiKey: gSaved.key||"" };
 
       // Restore full state from localStorage if available
       const fullSaved = JSON.parse(localStorage.getItem("ds_full")||"{}");
