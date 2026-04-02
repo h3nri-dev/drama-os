@@ -2,12 +2,7 @@ node_modules
 dist
 .DS_Store
 *.local
-<<<<<<< HEAD
-
-.covibing/
-.vercel
-=======
 .env
 .env.local
 .env.production
->>>>>>> covibing/task-e07f4324-3539-45b4-b554-8b862d8ca239
+.vercel
