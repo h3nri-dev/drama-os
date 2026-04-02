@@ -5971,7 +5971,7 @@ function PageDashboard({ state, dispatch, onGenerate }) {
   if (!proj) return (
     <div>
       <div style={{textAlign:"center",paddingTop:80,paddingBottom:40}}>
-        <div style={{fontFamily:"Cormorant Garamond,serif",fontSize:40,color:"var(--gold2)",fontWeight:700,marginBottom:10}}>Drama Studio</div>
+        <div style={{fontFamily:"Cormorant Garamond,serif",fontSize:40,color:"var(--gold2)",fontWeight:700,marginBottom:10}}>Nekoi Studio</div>
         <div style={{fontSize:17,color:"var(--t3)",marginBottom:48}}>Production OS for AI-generated drama and game series</div>
         <div className="g2" style={{maxWidth:620,margin:"0 auto",textAlign:"left"}}>
           <div className="card" style={{borderColor:"rgba(201,168,76,.3)",background:"linear-gradient(135deg,rgba(201,168,76,.08),rgba(201,168,76,.02))",cursor:"pointer",padding:24}} onClick={onGenerate}>
@@ -10050,7 +10050,7 @@ function AuthModal({ supabaseUrl, supabaseKey, onSuccess, onClose }) {
   return (
     <div className="overlay">
       <div className="auth-modal">
-        <div className="auth-logo">Drama Studio</div>
+        <div className="auth-logo">Nekoi Studio</div>
         <div className="auth-sub">Production OS · Team Sign In</div>
         {tab !== "verify" ? (
           <>
@@ -14175,7 +14175,7 @@ function AppMain({ authedUser, onSignOut }) {
         {/* NAV */}
         <nav className="nav">
           <div className="nav-logo">
-            <div className="logo-word">Drama Studio</div>
+            <div className="logo-word">Nekoi Studio</div>
             <div className="logo-sub">Production OS</div>
           </div>
 
@@ -14256,7 +14256,7 @@ function AppMain({ authedUser, onSignOut }) {
           />
 
           <div className="topbar">
-            <span className="tb-title">Drama Studio</span>
+            <span className="tb-title">Nekoi Studio</span>
             {CRUMBS[state.view]?.map((c,i)=>(
               <span key={i} style={{display:"flex",alignItems:"center",gap:6}}>
                 <span className="tb-sep">›</span>
