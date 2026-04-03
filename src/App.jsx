@@ -11531,7 +11531,6 @@ function PageSettings({ state, dispatch }) {
   const saveSupabase = () => {
     if (!sbUrl.trim() || !sbKey.trim()) return;
     dispatch({ type:"SET_SUPABASE", url:sbUrl.trim(), key:sbKey.trim() });
-    localStorage.setItem("ds_sb", JSON.stringify({ url:sbUrl.trim(), key:sbKey.trim() }));
     setSbSaved(true);
     setTimeout(() => setSbSaved(false), 3000);
   };
@@ -13954,9 +13953,8 @@ function AppMain({ authedUser, onSignOut }) {
   const [state, dispatch] = useReducer(reducer, INITIAL_STATE, (s) => {
     try {
       const saved   = JSON.parse(localStorage.getItem("ds_state")||"{}");
-      const sbSaved = JSON.parse(localStorage.getItem("ds_sb")||"{}");
       const gSaved  = JSON.parse(localStorage.getItem("ds_gemini")||"{}");
-      const base    = { ...s, apiKey: saved.apiKey||"", supabaseUrl: sbSaved.url||SUPABASE_URL, supabaseKey: sbSaved.key||SUPABASE_ANON_KEY, geminiKey: gSaved.key||"" };
+      const base    = { ...s, apiKey: saved.apiKey||"", supabaseUrl: SUPABASE_URL, supabaseKey: SUPABASE_ANON_KEY, geminiKey: gSaved.key||"" };
 
       // Restore full state from localStorage if available
       const fullSaved = JSON.parse(localStorage.getItem("ds_full")||"{}");
