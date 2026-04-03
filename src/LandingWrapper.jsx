@@ -534,6 +534,70 @@ function LandingPage({ onLogin, onWaitlist, onTerms, supabaseConfigured }) {
   );
 }
 
+// ── Set New Password Modal ────────────────────────────────────────────────────
+function SetNewPasswordModal({ onClose }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (password !== confirm) { setError("Passwords do not match."); return; }
+    if (!supabase) { setError("Auth service not configured."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const { error: updateErr } = await supabase.auth.updateUser({ password });
+      if (updateErr) throw updateErr;
+      setDone(true);
+    } catch (err) {
+      setError(err.message || "Failed to update password.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="overlay">
+        <div className="modal">
+          <div className="modal-t">Password updated</div>
+          <div className="modal-s">Your password has been changed successfully. You are now signed in.</div>
+          <div className="co-green" style={{ marginBottom: 20 }}>You can now use your new password to sign in.</div>
+          <div className="modal-ft">
+            <button className="btn btn-gold" onClick={onClose}>Continue</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overlay">
+      <div className="modal">
+        <div className="modal-t">Set new password</div>
+        <div className="modal-s">Enter and confirm your new password below.</div>
+        {error && <div className="co-red" style={{ marginBottom: 16 }}>{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="fg">
+            <label className="fl">New password</label>
+            <input className="fi" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
+          </div>
+          <div className="fg">
+            <label className="fl">Confirm password</label>
+            <input className="fi" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required placeholder="••••••••" minLength={6} />
+          </div>
+          <div className="modal-ft">
+            <button className="btn btn-gold" type="submit" disabled={loading}>{loading ? "…" : "Set password"}</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Root Wrapper ─────────────────────────────────────────────────────────────
 export default function LandingWrapper() {
   useCSS("nekoi-landing-css", LANDING_CSS);
@@ -543,6 +607,7 @@ export default function LandingWrapper() {
   const [page, setPage] = useState("landing"); // "landing" | "terms"
   const [showLogin, setShowLogin] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
   // Config modal removed — credentials come from environment variables
 
   useEffect(() => {
@@ -551,8 +616,12 @@ export default function LandingWrapper() {
         setUser(data.session?.user || null);
         setLoading(false);
       });
-      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user || null);
+      const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === "PASSWORD_RECOVERY") {
+          setShowPasswordReset(true);
+        } else {
+          setUser(session?.user || null);
+        }
       });
       return () => listener?.subscription?.unsubscribe();
     } else {
@@ -561,6 +630,16 @@ export default function LandingWrapper() {
   }, []);
 
   if (loading) return <LoadingScreen />;
+
+  // Password recovery flow — user clicked email link
+  if (showPasswordReset) {
+    return (
+      <SetNewPasswordModal onClose={() => {
+        setShowPasswordReset(false);
+        // After updating, onAuthStateChange SIGNED_IN will fire and set user
+      }} />
+    );
+  }
 
   // Authenticated — show the full app
   if (user) return <App />;
