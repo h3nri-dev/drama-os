@@ -535,7 +535,11 @@ function LandingPage({ onLogin, onWaitlist, onTerms, supabaseConfigured }) {
 }
 
 // ── Set New Password Modal ────────────────────────────────────────────────────
+<<<<<<< HEAD
 function SetNewPasswordModal({ onClose, onSuccess }) {
+=======
+function SetNewPasswordModal({ onClose }) {
+>>>>>>> covibing/task-4a573ab6-d5b5-4e94-a960-c7a7326a3339
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [loading, setLoading] = useState(false);
@@ -545,14 +549,21 @@ function SetNewPasswordModal({ onClose, onSuccess }) {
   async function handleSubmit(e) {
     e.preventDefault();
     if (password !== confirm) { setError("Passwords do not match."); return; }
+<<<<<<< HEAD
     if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+=======
+    if (!supabase) { setError("Auth service not configured."); return; }
+>>>>>>> covibing/task-4a573ab6-d5b5-4e94-a960-c7a7326a3339
     setLoading(true);
     setError("");
     try {
       const { error: updateErr } = await supabase.auth.updateUser({ password });
       if (updateErr) throw updateErr;
       setDone(true);
+<<<<<<< HEAD
       setTimeout(() => onSuccess(), 1500);
+=======
+>>>>>>> covibing/task-4a573ab6-d5b5-4e94-a960-c7a7326a3339
     } catch (err) {
       setError(err.message || "Failed to update password.");
     } finally {
@@ -564,32 +575,56 @@ function SetNewPasswordModal({ onClose, onSuccess }) {
     return (
       <div className="overlay">
         <div className="modal">
+<<<<<<< HEAD
           <div className="modal-t">Password updated!</div>
           <div className="co-green" style={{ marginTop: 12 }}>Your password has been changed. Signing you in…</div>
+=======
+          <div className="modal-t">Password updated</div>
+          <div className="modal-s">Your password has been changed successfully. You are now signed in.</div>
+          <div className="co-green" style={{ marginBottom: 20 }}>You can now use your new password to sign in.</div>
+          <div className="modal-ft">
+            <button className="btn btn-gold" onClick={onClose}>Continue</button>
+          </div>
+>>>>>>> covibing/task-4a573ab6-d5b5-4e94-a960-c7a7326a3339
         </div>
       </div>
     );
   }
 
   return (
+<<<<<<< HEAD
     <div className="overlay" onClick={onClose}>
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-t">Set new password</div>
         <div className="modal-s">Choose a new password for your account.</div>
+=======
+    <div className="overlay">
+      <div className="modal">
+        <div className="modal-t">Set new password</div>
+        <div className="modal-s">Enter and confirm your new password below.</div>
+>>>>>>> covibing/task-4a573ab6-d5b5-4e94-a960-c7a7326a3339
         {error && <div className="co-red" style={{ marginBottom: 16 }}>{error}</div>}
         <form onSubmit={handleSubmit}>
           <div className="fg">
             <label className="fl">New password</label>
+<<<<<<< HEAD
             <input className="fi" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} autoFocus />
+=======
+            <input className="fi" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} />
+>>>>>>> covibing/task-4a573ab6-d5b5-4e94-a960-c7a7326a3339
           </div>
           <div className="fg">
             <label className="fl">Confirm password</label>
             <input className="fi" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required placeholder="••••••••" minLength={6} />
           </div>
           <div className="modal-ft">
+<<<<<<< HEAD
             <button className="btn btn-gold" type="submit" disabled={loading} style={{ width: "100%" }}>
               {loading ? "Updating…" : "Set new password"}
             </button>
+=======
+            <button className="btn btn-gold" type="submit" disabled={loading}>{loading ? "…" : "Set password"}</button>
+>>>>>>> covibing/task-4a573ab6-d5b5-4e94-a960-c7a7326a3339
           </div>
         </form>
       </div>
@@ -617,9 +652,13 @@ export default function LandingWrapper() {
       });
       const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
         if (event === "PASSWORD_RECOVERY") {
+<<<<<<< HEAD
           // User arrived via password reset email link — show new password form
           setShowPasswordReset(true);
           setUser(null);
+=======
+          setShowPasswordReset(true);
+>>>>>>> covibing/task-4a573ab6-d5b5-4e94-a960-c7a7326a3339
         } else {
           setUser(session?.user || null);
         }
@@ -631,6 +670,16 @@ export default function LandingWrapper() {
   }, []);
 
   if (loading) return <LoadingScreen />;
+
+  // Password recovery flow — user clicked email link
+  if (showPasswordReset) {
+    return (
+      <SetNewPasswordModal onClose={() => {
+        setShowPasswordReset(false);
+        // After updating, onAuthStateChange SIGNED_IN will fire and set user
+      }} />
+    );
+  }
 
   // Authenticated — show the full app
   if (user) return <App />;
