@@ -534,6 +534,69 @@ function LandingPage({ onLogin, onWaitlist, onTerms, supabaseConfigured }) {
   );
 }
 
+// ── Set New Password Modal ────────────────────────────────────────────────────
+function SetNewPasswordModal({ onClose, onSuccess }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [done, setDone] = useState(false);
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    if (password !== confirm) { setError("Passwords do not match."); return; }
+    if (password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    setLoading(true);
+    setError("");
+    try {
+      const { error: updateErr } = await supabase.auth.updateUser({ password });
+      if (updateErr) throw updateErr;
+      setDone(true);
+      setTimeout(() => onSuccess(), 1500);
+    } catch (err) {
+      setError(err.message || "Failed to update password.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  if (done) {
+    return (
+      <div className="overlay">
+        <div className="modal">
+          <div className="modal-t">Password updated!</div>
+          <div className="co-green" style={{ marginTop: 12 }}>Your password has been changed. Signing you in…</div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-t">Set new password</div>
+        <div className="modal-s">Choose a new password for your account.</div>
+        {error && <div className="co-red" style={{ marginBottom: 16 }}>{error}</div>}
+        <form onSubmit={handleSubmit}>
+          <div className="fg">
+            <label className="fl">New password</label>
+            <input className="fi" type="password" value={password} onChange={e => setPassword(e.target.value)} required placeholder="••••••••" minLength={6} autoFocus />
+          </div>
+          <div className="fg">
+            <label className="fl">Confirm password</label>
+            <input className="fi" type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required placeholder="••••••••" minLength={6} />
+          </div>
+          <div className="modal-ft">
+            <button className="btn btn-gold" type="submit" disabled={loading} style={{ width: "100%" }}>
+              {loading ? "Updating…" : "Set new password"}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Root Wrapper ─────────────────────────────────────────────────────────────
 export default function LandingWrapper() {
   useCSS("nekoi-landing-css", LANDING_CSS);
@@ -543,6 +606,7 @@ export default function LandingWrapper() {
   const [page, setPage] = useState("landing"); // "landing" | "terms"
   const [showLogin, setShowLogin] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
+  const [showPasswordReset, setShowPasswordReset] = useState(false);
   // Config modal removed — credentials come from environment variables
 
   useEffect(() => {
@@ -551,8 +615,14 @@ export default function LandingWrapper() {
         setUser(data.session?.user || null);
         setLoading(false);
       });
-      const { data: listener } = supabase.auth.onAuthStateChange((_event, session) => {
-        setUser(session?.user || null);
+      const { data: listener } = supabase.auth.onAuthStateChange((event, session) => {
+        if (event === "PASSWORD_RECOVERY") {
+          // User arrived via password reset email link — show new password form
+          setShowPasswordReset(true);
+          setUser(null);
+        } else {
+          setUser(session?.user || null);
+        }
       });
       return () => listener?.subscription?.unsubscribe();
     } else {
@@ -567,6 +637,19 @@ export default function LandingWrapper() {
 
   // Terms page
   if (page === "terms") return <TermsPage onBack={() => setPage("landing")} />;
+
+  // Password recovery — user came from reset email
+  if (showPasswordReset) {
+    return (
+      <SetNewPasswordModal
+        onClose={() => setShowPasswordReset(false)}
+        onSuccess={() => {
+          setShowPasswordReset(false);
+          // onAuthStateChange will fire SIGNED_IN and set user automatically
+        }}
+      />
+    );
+  }
 
   // Landing page with optional modals
   return (
