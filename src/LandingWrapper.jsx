@@ -141,7 +141,7 @@ function LoginModal({ onClose, onSuccess, onSwitchToWaitlist }) {
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
-  const [mode, setMode] = useState("login"); // "login" | "signup"
+  const [mode, setMode] = useState("login"); // "login" | "signup" | "reset"
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -149,18 +149,24 @@ function LoginModal({ onClose, onSuccess, onSwitchToWaitlist }) {
     setLoading(true);
     setError("");
     try {
-      let result;
-      if (mode === "login") {
-        result = await supabase.auth.signInWithPassword({ email, password });
-      } else {
-        result = await supabase.auth.signUp({ email, password });
-      }
-      if (result.error) throw result.error;
-      if (mode === "signup" && !result.data.session) {
-        setError("");
-        setMode("confirm");
-      } else {
+      if (mode === "reset") {
+        const { error: resetErr } = await supabase.auth.resetPasswordForEmail(email, {
+          redirectTo: window.location.origin,
+        });
+        if (resetErr) throw resetErr;
+        setMode("reset-sent");
+      } else if (mode === "login") {
+        const result = await supabase.auth.signInWithPassword({ email, password });
+        if (result.error) throw result.error;
         onSuccess(result.data.session?.user);
+      } else {
+        const result = await supabase.auth.signUp({ email, password });
+        if (result.error) throw result.error;
+        if (!result.data.session) {
+          setMode("confirm");
+        } else {
+          onSuccess(result.data.session?.user);
+        }
       }
     } catch (err) {
       setError(err.message || "Authentication failed");
@@ -178,6 +184,42 @@ function LoginModal({ onClose, onSuccess, onSwitchToWaitlist }) {
           <div className="modal-ft">
             <button className="btn btn-gold" onClick={() => setMode("login")}>Back to sign in</button>
           </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "reset-sent") {
+    return (
+      <div className="overlay" onClick={onClose}>
+        <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal-t">Check your email</div>
+          <div className="modal-s">We sent a password reset link to <strong>{email}</strong>. Click it to set a new password.</div>
+          <div className="modal-ft">
+            <button className="btn btn-gold" onClick={() => setMode("login")}>Back to sign in</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (mode === "reset") {
+    return (
+      <div className="overlay" onClick={onClose}>
+        <div className="modal" onClick={e => e.stopPropagation()}>
+          <div className="modal-t">Reset password</div>
+          <div className="modal-s">Enter your email and we'll send a reset link.</div>
+          {error && <div className="co-red" style={{ marginBottom: 16 }}>{error}</div>}
+          <form onSubmit={handleSubmit}>
+            <div className="fg">
+              <label className="fl">Email</label>
+              <input className="fi" type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="you@example.com" />
+            </div>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 8 }}>
+              <button type="button" className="btn btn-ghost btn-sm" onClick={() => setMode("login")}>Back to sign in</button>
+              <button className="btn btn-gold" type="submit" disabled={loading}>{loading ? "…" : "Send reset link"}</button>
+            </div>
+          </form>
         </div>
       </div>
     );
@@ -210,6 +252,11 @@ function LoginModal({ onClose, onSuccess, onSwitchToWaitlist }) {
               {loading ? "…" : mode === "login" ? "Sign in" : "Create account"}
             </button>
           </div>
+          {mode === "login" && (
+            <div style={{ marginTop: 12, textAlign: "right" }}>
+              <span style={{ color: "var(--t3)", fontSize: 13, cursor: "pointer" }} onClick={() => setMode("reset")}>Forgot password?</span>
+            </div>
+          )}
         </form>
         <div style={{ marginTop: 20, paddingTop: 16, borderTop: "1px solid var(--ln)", textAlign: "center" }}>
           <span style={{ color: "var(--t3)", fontSize: 14 }}>Don't have access yet? </span>
