@@ -3,8 +3,9 @@ import { createClient } from "@supabase/supabase-js";
 import App from "./App.jsx";
 
 // ── Supabase client ──────────────────────────────────────────────────────────
-const SUPA_URL = import.meta.env.VITE_SUPABASE_URL || "";
-const SUPA_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+// localStorage credentials take priority over env vars (allows runtime config)
+const SUPA_URL = localStorage.getItem("SUPABASE_URL") || import.meta.env.VITE_SUPABASE_URL || "";
+const SUPA_KEY = localStorage.getItem("SUPABASE_ANON_KEY") || import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 const supabase = SUPA_URL && SUPA_KEY ? createClient(SUPA_URL, SUPA_KEY) : null;
 
 // ── Shared styles ────────────────────────────────────────────────────────────
@@ -306,6 +307,55 @@ function WaitlistModal({ onClose }) {
   );
 }
 
+// ── Config Modal (admin: set Supabase credentials at runtime) ────────────────
+function ConfigModal({ onClose }) {
+  const [url, setUrl] = useState(localStorage.getItem("SUPABASE_URL") || "");
+  const [key, setKey] = useState(localStorage.getItem("SUPABASE_ANON_KEY") || "");
+  const [saved, setSaved] = useState(false);
+
+  function handleSave(e) {
+    e.preventDefault();
+    if (url.trim()) localStorage.setItem("SUPABASE_URL", url.trim());
+    else localStorage.removeItem("SUPABASE_URL");
+    if (key.trim()) localStorage.setItem("SUPABASE_ANON_KEY", key.trim());
+    else localStorage.removeItem("SUPABASE_ANON_KEY");
+    setSaved(true);
+    setTimeout(() => window.location.reload(), 800);
+  }
+
+  function handleClear() {
+    localStorage.removeItem("SUPABASE_URL");
+    localStorage.removeItem("SUPABASE_ANON_KEY");
+    setUrl("");
+    setKey("");
+  }
+
+  return (
+    <div className="overlay" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-t">Configure Auth</div>
+        <div className="modal-s">Set Supabase credentials. Saved to localStorage — takes effect on reload.</div>
+        {saved && <div className="co-green" style={{ marginBottom: 16 }}>Saved! Reloading…</div>}
+        <form onSubmit={handleSave}>
+          <div className="fg">
+            <label className="fl">Supabase URL</label>
+            <input className="fi" type="url" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://your-project.supabase.co" />
+          </div>
+          <div className="fg">
+            <label className="fl">Supabase Anon Key</label>
+            <input className="fi" type="text" value={key} onChange={e => setKey(e.target.value)} placeholder="eyJ…" />
+          </div>
+          <div className="modal-ft">
+            <button type="button" className="btn btn-ghost btn-sm" onClick={handleClear}>Clear</button>
+            <button type="button" className="btn btn-ghost" onClick={onClose}>Cancel</button>
+            <button className="btn btn-gold" type="submit">Save &amp; Reload</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 // ── Terms & Conditions Page ──────────────────────────────────────────────────
 function TermsPage({ onBack }) {
   return (
@@ -400,7 +450,7 @@ const FEATURES = [
   { icon: "⬟", title: "Team Collaboration", desc: "Invite co-writers, editors, and producers to collaborate in real-time with granular role-based permissions." },
 ];
 
-function LandingPage({ onLogin, onWaitlist, onTerms }) {
+function LandingPage({ onLogin, onWaitlist, onTerms, onConfig }) {
   return (
     <div className="lp-wrap">
       <nav className="lp-nav">
@@ -469,6 +519,7 @@ function LandingPage({ onLogin, onWaitlist, onTerms }) {
           <span className="lp-footer-link" onClick={onTerms}>Terms & Conditions</span>
           <span className="lp-footer-link" onClick={onWaitlist}>Join Waitlist</span>
           <span className="lp-footer-link" onClick={onLogin}>Sign In</span>
+          <span className="lp-footer-link" onClick={onConfig} style={{ opacity: 0.3, fontSize: 12 }}>⚙</span>
         </div>
       </footer>
     </div>
@@ -484,6 +535,7 @@ export default function LandingWrapper() {
   const [page, setPage] = useState("landing"); // "landing" | "terms"
   const [showLogin, setShowLogin] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
+  const [showConfig, setShowConfig] = useState(false);
 
   useEffect(() => {
     if (supabase) {
@@ -515,6 +567,7 @@ export default function LandingWrapper() {
         onLogin={() => setShowLogin(true)}
         onWaitlist={() => setShowWaitlist(true)}
         onTerms={() => setPage("terms")}
+        onConfig={() => setShowConfig(true)}
       />
       {showLogin && (
         <LoginModal
@@ -525,6 +578,9 @@ export default function LandingWrapper() {
       )}
       {showWaitlist && (
         <WaitlistModal onClose={() => setShowWaitlist(false)} />
+      )}
+      {showConfig && (
+        <ConfigModal onClose={() => setShowConfig(false)} />
       )}
     </>
   );
