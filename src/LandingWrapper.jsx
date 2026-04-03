@@ -146,10 +146,14 @@ function LoginModal({ onClose, onSuccess, onSwitchToWaitlist, onConfig }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
+<<<<<<< HEAD
     if (!supabase) {
       setError("Auth service not configured. Please add Supabase credentials.");
       return;
     }
+=======
+    if (!supabase) { setError("Auth service not configured. Use the ⚙ gear icon in the footer to add Supabase credentials."); return; }
+>>>>>>> covibing/task-625a7a3c-9e20-4a27-af91-b3ec2a82a6ef
     setLoading(true);
     setError("");
     try {
@@ -605,10 +609,14 @@ export default function LandingWrapper() {
     <>
       <LandingPage
 <<<<<<< HEAD
+<<<<<<< HEAD
         onLogin={() => supabase ? setShowLogin(true) : setShowConfig(true)}
 =======
         onLogin={handleLoginClick}
 >>>>>>> covibing/task-23285c69-5f69-4d33-8500-0a38033ef5c5
+=======
+        onLogin={() => { if (!supabase) { setShowConfig(true); } else { setShowLogin(true); } }}
+>>>>>>> covibing/task-625a7a3c-9e20-4a27-af91-b3ec2a82a6ef
         onWaitlist={() => setShowWaitlist(true)}
         onTerms={() => setPage("terms")}
         onConfig={() => { setConfigReason(""); setShowConfig(true); }}
