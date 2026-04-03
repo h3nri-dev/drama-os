@@ -146,7 +146,7 @@ function LoginModal({ onClose, onSuccess, onSwitchToWaitlist }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!supabase) { setError("Auth service not configured. Please add Supabase credentials."); return; }
+    if (!supabase) { setError("Auth service not configured. Use the ⚙ gear icon in the footer to add Supabase credentials."); return; }
     setLoading(true);
     setError("");
     try {
@@ -564,7 +564,7 @@ export default function LandingWrapper() {
   return (
     <>
       <LandingPage
-        onLogin={() => setShowLogin(true)}
+        onLogin={() => { if (!supabase) { setShowConfig(true); } else { setShowLogin(true); } }}
         onWaitlist={() => setShowWaitlist(true)}
         onTerms={() => setPage("terms")}
         onConfig={() => setShowConfig(true)}
