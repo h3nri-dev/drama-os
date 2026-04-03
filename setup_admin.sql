@@ -3,7 +3,7 @@
 -- Run this in: Supabase Dashboard → SQL Editor → New Query
 -- ═══════════════════════════════════════════════════════════════════
 -- Sets up henry.d@huski.ai as an admin user.
--- Password: Hd7@NkStudio2026
+-- Password: Nekoi@Admin2026!
 -- ═══════════════════════════════════════════════════════════════════
 
 -- Step 1: Create the user in Supabase Auth (if they don't already exist)
@@ -37,7 +37,7 @@ BEGIN
       'authenticated',
       'authenticated',
       'henry.d@huski.ai',
-      crypt('Hd7@NkStudio2026', gen_salt('bf')),
+      crypt('Nekoi@Admin2026!', gen_salt('bf')),
       NOW(),
       '{"provider":"email","providers":["email"],"role":"admin"}',
       '{"name":"Henry D","role":"admin"}',
