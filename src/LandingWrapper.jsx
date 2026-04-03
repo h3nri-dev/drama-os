@@ -137,7 +137,7 @@ function LoadingScreen() {
 }
 
 // ── Login Modal ──────────────────────────────────────────────────────────────
-function LoginModal({ onClose, onSuccess, onSwitchToWaitlist }) {
+function LoginModal({ onClose, onSuccess, onSwitchToWaitlist, onConfig }) {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -146,7 +146,10 @@ function LoginModal({ onClose, onSuccess, onSwitchToWaitlist }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-    if (!supabase) { setError("Auth service not configured. Please add Supabase credentials."); return; }
+    if (!supabase) {
+      setError("Auth service not configured. Please add Supabase credentials.");
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -189,7 +192,18 @@ function LoginModal({ onClose, onSuccess, onSwitchToWaitlist }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-t">{mode === "login" ? "Sign in" : "Create account"}</div>
         <div className="modal-s">Access Nekoi Studio</div>
-        {error && <div className="co-red" style={{ marginBottom: 16 }}>{error}</div>}
+        {error && (
+          <div className="co-red" style={{ marginBottom: 16 }}>
+            {error}
+            {!supabase && onConfig && (
+              <div style={{ marginTop: 10 }}>
+                <button className="btn btn-gold btn-sm" onClick={() => { onClose(); onConfig(); }}>
+                  Configure Supabase →
+                </button>
+              </div>
+            )}
+          </div>
+        )}
         <form onSubmit={handleSubmit}>
           <div className="fg">
             <label className="fl">Email</label>
@@ -519,7 +533,9 @@ function LandingPage({ onLogin, onWaitlist, onTerms, onConfig }) {
           <span className="lp-footer-link" onClick={onTerms}>Terms & Conditions</span>
           <span className="lp-footer-link" onClick={onWaitlist}>Join Waitlist</span>
           <span className="lp-footer-link" onClick={onLogin}>Sign In</span>
-          <span className="lp-footer-link" onClick={onConfig} style={{ opacity: 0.3, fontSize: 12 }}>⚙</span>
+          <span className="lp-footer-link" onClick={onConfig} style={{ opacity: supabase ? 0.3 : 1, fontSize: supabase ? 12 : 13, color: supabase ? undefined : "var(--gold)" }}>
+            {supabase ? "⚙" : "⚙ Configure"}
+          </span>
         </div>
       </footer>
     </div>
@@ -564,7 +580,7 @@ export default function LandingWrapper() {
   return (
     <>
       <LandingPage
-        onLogin={() => setShowLogin(true)}
+        onLogin={() => supabase ? setShowLogin(true) : setShowConfig(true)}
         onWaitlist={() => setShowWaitlist(true)}
         onTerms={() => setPage("terms")}
         onConfig={() => setShowConfig(true)}
@@ -574,6 +590,7 @@ export default function LandingWrapper() {
           onClose={() => setShowLogin(false)}
           onSuccess={u => { setUser(u); setShowLogin(false); }}
           onSwitchToWaitlist={() => { setShowLogin(false); setShowWaitlist(true); }}
+          onConfig={() => { setShowLogin(false); setShowConfig(true); }}
         />
       )}
       {showWaitlist && (
