@@ -480,13 +480,7 @@ function LandingPage({ onLogin, onWaitlist, onTerms, supabaseConfigured }) {
           <span className="lp-footer-link" onClick={onTerms}>Terms & Conditions</span>
           <span className="lp-footer-link" onClick={onWaitlist}>Join Waitlist</span>
           <span className="lp-footer-link" onClick={onLogin}>Sign In</span>
-<<<<<<< HEAD
           <span className="lp-footer-link" style={{ opacity: 0.3, fontSize: 12 }}>⚙</span>
-=======
-          <span className="lp-footer-link" onClick={onConfig} style={{ opacity: supabaseConfigured ? 0.3 : 1, fontSize: supabaseConfigured ? 12 : 13, color: supabaseConfigured ? undefined : "var(--gold)" }}>
-            {supabaseConfigured ? "⚙" : "⚙ Configure"}
-          </span>
->>>>>>> covibing/task-5cb70e64-4dcb-4a5b-9758-b23f5cee752b
         </div>
       </footer>
     </div>
