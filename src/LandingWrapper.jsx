@@ -308,7 +308,7 @@ function WaitlistModal({ onClose }) {
 }
 
 // ── Config Modal (admin: set Supabase credentials at runtime) ────────────────
-function ConfigModal({ onClose }) {
+function ConfigModal({ onClose, reason = "" }) {
   const [url, setUrl] = useState(localStorage.getItem("SUPABASE_URL") || "");
   const [key, setKey] = useState(localStorage.getItem("SUPABASE_ANON_KEY") || "");
   const [saved, setSaved] = useState(false);
@@ -335,6 +335,7 @@ function ConfigModal({ onClose }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-t">Configure Auth</div>
         <div className="modal-s">Set Supabase credentials. Saved to localStorage — takes effect on reload.</div>
+        {reason && <div className="co-gold" style={{ marginBottom: 16 }}>{reason}</div>}
         {saved && <div className="co-green" style={{ marginBottom: 16 }}>Saved! Reloading…</div>}
         <form onSubmit={handleSave}>
           <div className="fg">
@@ -450,9 +451,18 @@ const FEATURES = [
   { icon: "⬟", title: "Team Collaboration", desc: "Invite co-writers, editors, and producers to collaborate in real-time with granular role-based permissions." },
 ];
 
-function LandingPage({ onLogin, onWaitlist, onTerms, onConfig }) {
+function LandingPage({ onLogin, onWaitlist, onTerms, onConfig, supabaseConfigured }) {
   return (
     <div className="lp-wrap">
+      {!supabaseConfigured && (
+        <div style={{ background: "rgba(201,168,76,0.12)", borderBottom: "1px solid rgba(201,168,76,0.3)", padding: "10px 24px", textAlign: "center", fontSize: 14, color: "var(--gold3)" }}>
+          Auth is not configured.{" "}
+          <span style={{ textDecoration: "underline", cursor: "pointer", fontWeight: 500 }} onClick={onConfig}>
+            Click here to add Supabase credentials
+          </span>
+          {" "}to enable sign-in.
+        </div>
+      )}
       <nav className="lp-nav">
         <span className="lp-logo">Nekoi <em>Studio</em></span>
         <div className="lp-nav-r">
@@ -519,7 +529,7 @@ function LandingPage({ onLogin, onWaitlist, onTerms, onConfig }) {
           <span className="lp-footer-link" onClick={onTerms}>Terms & Conditions</span>
           <span className="lp-footer-link" onClick={onWaitlist}>Join Waitlist</span>
           <span className="lp-footer-link" onClick={onLogin}>Sign In</span>
-          <span className="lp-footer-link" onClick={onConfig} style={{ opacity: 0.3, fontSize: 12 }}>⚙</span>
+          <span className="lp-footer-link" onClick={onConfig} style={{ opacity: supabaseConfigured ? 0.3 : 0.8, fontSize: 12, color: supabaseConfigured ? undefined : "var(--gold)" }}>⚙</span>
         </div>
       </footer>
     </div>
@@ -536,6 +546,7 @@ export default function LandingWrapper() {
   const [showLogin, setShowLogin] = useState(false);
   const [showWaitlist, setShowWaitlist] = useState(false);
   const [showConfig, setShowConfig] = useState(false);
+  const [configReason, setConfigReason] = useState(""); // why config modal was opened
 
   useEffect(() => {
     if (supabase) {
@@ -560,14 +571,24 @@ export default function LandingWrapper() {
   // Terms page
   if (page === "terms") return <TermsPage onBack={() => setPage("landing")} />;
 
+  function handleLoginClick() {
+    if (!supabase) {
+      setConfigReason("Supabase credentials are required to sign in. Enter your project URL and anon key below.");
+      setShowConfig(true);
+    } else {
+      setShowLogin(true);
+    }
+  }
+
   // Landing page with optional modals
   return (
     <>
       <LandingPage
-        onLogin={() => setShowLogin(true)}
+        onLogin={handleLoginClick}
         onWaitlist={() => setShowWaitlist(true)}
         onTerms={() => setPage("terms")}
-        onConfig={() => setShowConfig(true)}
+        onConfig={() => { setConfigReason(""); setShowConfig(true); }}
+        supabaseConfigured={!!supabase}
       />
       {showLogin && (
         <LoginModal
@@ -580,7 +601,10 @@ export default function LandingWrapper() {
         <WaitlistModal onClose={() => setShowWaitlist(false)} />
       )}
       {showConfig && (
-        <ConfigModal onClose={() => setShowConfig(false)} />
+        <ConfigModal
+          onClose={() => { setShowConfig(false); setConfigReason(""); }}
+          reason={configReason}
+        />
       )}
     </>
   );
