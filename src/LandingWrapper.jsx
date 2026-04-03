@@ -146,18 +146,7 @@ function LoginModal({ onClose, onSuccess, onSwitchToWaitlist, onConfig }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-<<<<<<< HEAD
-<<<<<<< HEAD
     if (!supabase) { setError("Auth service not configured. Use the ⚙ gear icon in the footer to add Supabase credentials."); return; }
-=======
-    if (!supabase) {
-      setError("Auth service not configured. Use the ⚙ gear icon in the footer to add Supabase credentials.");
-      return;
-    }
->>>>>>> covibing/task-0b412405-cfd4-4523-ab47-5f3476a8490b
-=======
-    if (!supabase) { setError("Auth service not configured. Use the ⚙ gear icon in the footer to add Supabase credentials."); return; }
->>>>>>> covibing/task-5f7854da-b76e-433b-97a3-79872bdf727d
     setLoading(true);
     setError("");
     try {
