@@ -13864,8 +13864,8 @@ function AutoQueueModal({ state, dispatch, onClose }) {
 // ═══════════════════════════════════════════════════════════════════
 // SUPABASE CONFIG — set these to your project values
 // ═══════════════════════════════════════════════════════════════════
-const SUPABASE_URL = "https://iqbkinqsolxlgxpjcohr.supabase.co";
-const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlxYmtpbnFzb2x4bGd4cGpjb2hyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDM3MjczMDksImV4cCI6MjA1OTMwMzMwOX0.sLpMVsCfLpM2x0wPXXGxOC0J_sOcFxNLiEfMDBjJcKA";
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
 
 // Expose globally so LoginPage can use them without prop drilling
 window.__DRAMA_SB_URL = SUPABASE_URL;
