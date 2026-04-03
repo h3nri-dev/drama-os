@@ -146,14 +146,10 @@ function LoginModal({ onClose, onSuccess, onSwitchToWaitlist, onConfig }) {
 
   async function handleSubmit(e) {
     e.preventDefault();
-<<<<<<< HEAD
     if (!supabase) {
-      setError("Auth service not configured. Please add Supabase credentials.");
+      setError("Auth service not configured. Use the ⚙ gear icon in the footer to add Supabase credentials.");
       return;
     }
-=======
-    if (!supabase) { setError("Auth service not configured. Use the ⚙ gear icon in the footer to add Supabase credentials."); return; }
->>>>>>> covibing/task-625a7a3c-9e20-4a27-af91-b3ec2a82a6ef
     setLoading(true);
     setError("");
     try {
@@ -547,13 +543,9 @@ function LandingPage({ onLogin, onWaitlist, onTerms, onConfig, supabaseConfigure
           <span className="lp-footer-link" onClick={onTerms}>Terms & Conditions</span>
           <span className="lp-footer-link" onClick={onWaitlist}>Join Waitlist</span>
           <span className="lp-footer-link" onClick={onLogin}>Sign In</span>
-<<<<<<< HEAD
-          <span className="lp-footer-link" onClick={onConfig} style={{ opacity: supabase ? 0.3 : 1, fontSize: supabase ? 12 : 13, color: supabase ? undefined : "var(--gold)" }}>
-            {supabase ? "⚙" : "⚙ Configure"}
+          <span className="lp-footer-link" onClick={onConfig} style={{ opacity: supabaseConfigured ? 0.3 : 1, fontSize: supabaseConfigured ? 12 : 13, color: supabaseConfigured ? undefined : "var(--gold)" }}>
+            {supabaseConfigured ? "⚙" : "⚙ Configure"}
           </span>
-=======
-          <span className="lp-footer-link" onClick={onConfig} style={{ opacity: supabaseConfigured ? 0.3 : 0.8, fontSize: 12, color: supabaseConfigured ? undefined : "var(--gold)" }}>⚙</span>
->>>>>>> covibing/task-23285c69-5f69-4d33-8500-0a38033ef5c5
         </div>
       </footer>
     </div>
@@ -608,15 +600,7 @@ export default function LandingWrapper() {
   return (
     <>
       <LandingPage
-<<<<<<< HEAD
-<<<<<<< HEAD
-        onLogin={() => supabase ? setShowLogin(true) : setShowConfig(true)}
-=======
         onLogin={handleLoginClick}
->>>>>>> covibing/task-23285c69-5f69-4d33-8500-0a38033ef5c5
-=======
-        onLogin={() => { if (!supabase) { setShowConfig(true); } else { setShowLogin(true); } }}
->>>>>>> covibing/task-625a7a3c-9e20-4a27-af91-b3ec2a82a6ef
         onWaitlist={() => setShowWaitlist(true)}
         onTerms={() => setPage("terms")}
         onConfig={() => { setConfigReason(""); setShowConfig(true); }}
