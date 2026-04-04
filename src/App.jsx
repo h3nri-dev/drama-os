@@ -613,10 +613,11 @@ const INITIAL_STATE = {
   jimengAspect: "9:16",
   videoJobs: [],  // [{id, segId, epId, projectId, status, taskId, videoUrl, error, startedAt, finishedAt}]
   // Image engine for VN panels + avatars
-  // "gemini" = Google Gemini (free tier, needs key)
+  // "nanoBanana2" = gemini-3.1-flash-image-preview (pinned, adaptive ratios)
+  // "gemini" = Google Gemini auto-cascade (NB2 → NB Pro → NB1)
   // "pollinations" = Pollinations.ai (100% free, no key needed)
   // "dalle" = OpenAI DALL-E 3 (paid, needs OpenAI key)
-  imageEngine: "gemini",
+  imageEngine: "nanoBanana2",
   // Audiobook
   elevenlabsKey: "",
   audioTranscripts: [],  // [{id,epId,projectId,lines,voiceMap,createdAt}]
@@ -2137,7 +2138,7 @@ function buildSysPrompt(state) {
     ? allEps.map(e=>`  EP${e.num}[${e.id}] vnStyle="${e.vnStyle||"cinematic"}"${e.vnStylePromptPrefix?` customPrefix="${e.vnStylePromptPrefix.substring(0,70)}…"`:` (built-in preset)`}`).join("\n")
     : "  (no episodes yet)";
 
-  const engineInfo = IMAGE_ENGINES[state.imageEngine||"gemini"]||IMAGE_ENGINES.gemini;
+  const engineInfo = IMAGE_ENGINES[state.imageEngine||"nanoBanana2"]||IMAGE_ENGINES.nanoBanana2;
   const keys = `Anthropic:${state.apiKey?"✓SET":"✗MISSING"} Gemini:${state.geminiKey?"✓SET":"✗MISSING"} OpenAI:${state.openaiKey?"✓SET":"✗MISSING"} Jimeng:${state.jimengKey?"✓SET":"✗MISSING"}`;
   const websiteCfg = proj?.website_config||{};
 
@@ -3765,16 +3766,29 @@ PANEL SEQUENCE RULES:
 
 // ENGINE INFO — shown in UI and AI Director
 const IMAGE_ENGINES = {
+  nanoBanana2: {
+    id: "nanoBanana2",
+    name: "Nano Banana 2",
+    badge: "NB2",
+    free: true,
+    needsKey: true,
+    keyName: "Gemini API Key",
+    keyHint: "AIzaSy...",
+    note: "gemini-3.1-flash-image-preview. Latest Gemini image model. Fast, high quality, adaptive aspect ratios per context.",
+    icon: "🍌",
+    strengths: ["Fast", "Adaptive ratio", "High quality"],
+  },
   gemini: {
     id: "gemini",
-    name: "Google Gemini",
+    name: "Google Gemini (Auto)",
     badge: "Gemini",
     free: true,
     needsKey: true,
     keyName: "Gemini API Key",
     keyHint: "AIzaSy...",
-    note: "Free tier: 1500 req/day. Best quality. Supports character reference images.",
+    note: "Auto-cascade: NB2 → NB Pro → NB1. Falls back to older models if latest unavailable. Supports reference images.",
     icon: "✦",
+    strengths: ["Reference images", "Auto-fallback", "Stable"],
   },
   pollinations: {
     id: "pollinations",
@@ -3786,6 +3800,7 @@ const IMAGE_ENGINES = {
     keyHint: null,
     note: "100% free, no key needed. Powered by FLUX. Good quality. No reference images.",
     icon: "🌸",
+    strengths: ["No key", "Free", "FLUX model"],
   },
   dalle: {
     id: "dalle",
@@ -3797,8 +3812,85 @@ const IMAGE_ENGINES = {
     keyHint: "sk-proj-...",
     note: "Paid (~$0.04–0.08/image). Highest quality. Requires OpenAI account.",
     icon: "⬡",
+    strengths: ["Highest quality", "Vivid style", "Precise prompts"],
   },
 };
+
+// ── Nano Banana 2 — gemini-3.1-flash-image-preview, pinned model ──
+// imageType: "vn" (9:16 portrait), "avatar" (1:1), "asset" (16:9), "cover" (2:3)
+async function generateImageNanaBanana2({ prompt, geminiKey, refImages = [], imageType = "vn" }) {
+  if (!geminiKey) throw new Error("No Gemini API key — add it in Settings → API Keys.");
+
+  const ASPECT_RATIOS = {
+    vn:     "9:16",
+    avatar: "1:1",
+    asset:  "16:9",
+    cover:  "2:3",
+  };
+  const aspectRatio = ASPECT_RATIOS[imageType] || "9:16";
+
+  const orientationHint = {
+    vn:     "Portrait orientation, vertical 9:16 composition.",
+    avatar: "Square portrait composition, head and shoulders.",
+    asset:  "Landscape orientation, wide 16:9 composition.",
+    cover:  "Vertical cover art composition, 2:3 ratio.",
+  }[imageType] || "Portrait orientation.";
+
+  const cleanPrompt = prompt
+    .replace(/--ar\s+\S+/g, "")
+    .replace(/--style\s+\S+/g, "")
+    .replace(/--stylize\s+\S+/g, "")
+    .replace(/--\w+\s*\S*/g, "")
+    .trim()
+    + " " + orientationHint;
+
+  const promptParts = [];
+  for (const img of refImages.slice(0, 3)) {
+    try {
+      const base64 = img.dataUrl.split(",")[1];
+      const mimeType = img.dataUrl.split(";")[0].replace("data:", "") || "image/jpeg";
+      promptParts.push({ inlineData: { mimeType, data: base64 } });
+      promptParts.push({ text: `[Reference ${img.type || "character"} — match these features in the generated image.]` });
+    } catch(e) { /* skip bad ref */ }
+  }
+  promptParts.push({ text: cleanPrompt });
+
+  const body = JSON.stringify({
+    contents: [{ parts: promptParts }],
+    generationConfig: {
+      responseModalities: ["TEXT", "IMAGE"],
+      imageConfig: { aspectRatio },
+    }
+  });
+
+  const MODEL = "gemini-3.1-flash-image-preview";
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent`;
+
+  const resp = await fetch(url, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "x-goog-api-key": geminiKey,
+    },
+    body,
+  });
+
+  if (!resp.ok) {
+    const e = await resp.json().catch(() => ({}));
+    throw new Error(`Nano Banana 2 (${resp.status}): ${e.error?.message || "unknown error"}`);
+  }
+
+  const data = await resp.json();
+  const parts = data.candidates?.[0]?.content?.parts || [];
+  const imgPart = parts.find(p => p.inlineData?.mimeType?.startsWith("image/"));
+  if (imgPart) {
+    return `data:${imgPart.inlineData.mimeType};base64,${imgPart.inlineData.data}`;
+  }
+  const textPart = parts.find(p => p.text);
+  throw new Error(textPart?.text
+    ? `Nano Banana 2: ${textPart.text.substring(0, 150)}`
+    : "Nano Banana 2: no image returned");
+}
 
 // ── Pollinations.ai — completely free, no key ──────────────────
 async function generateImagePollinations(prompt) {
@@ -3849,14 +3941,18 @@ async function generateImageDalle({ prompt, openaiKey }) {
 }
 
 // ── Unified image generator — routes to correct engine ────────
-async function generateVNImage({ prompt, geminiKey, openaiKey, refImages = [], engine = "gemini" }) {
+// imageType: "vn" | "avatar" | "asset" | "cover" — used by nanoBanana2 for aspect ratio
+async function generateVNImage({ prompt, geminiKey, openaiKey, refImages = [], engine = "nanoBanana2", imageType = "vn" }) {
+  if (engine === "nanoBanana2") {
+    return generateImageNanaBanana2({ prompt, geminiKey, refImages, imageType });
+  }
   if (engine === "pollinations") {
     return generateImagePollinations(prompt);
   }
   if (engine === "dalle") {
     return generateImageDalle({ prompt, openaiKey });
   }
-  // Default: Gemini
+  // "gemini" engine: auto-cascade through models
   return generateVNImageGemini({ prompt, geminiKey, refImages });
 }
 
@@ -3969,13 +4065,16 @@ async function generateCharacterAvatar({ char, geminiKey, openaiKey, style = "re
     "No text, no watermarks, no UI overlays. Clean background. Highly detailed.",
   ].filter(Boolean).join(" ");
 
+  if (engine === "nanoBanana2") {
+    return generateImageNanaBanana2({ prompt: avatarPrompt, geminiKey, refImages: [], imageType: "avatar" });
+  }
   if (engine === "pollinations") {
     return generateImagePollinations(avatarPrompt);
   }
   if (engine === "dalle") {
     return generateImageDalle({ prompt: avatarPrompt, openaiKey });
   }
-  // Default: Gemini
+  // Default: Gemini cascade
   if (!geminiKey) throw new Error("Gemini API key required — set it in Settings.");
 
   const body = {
@@ -4072,8 +4171,8 @@ function VisualNovelSheetModal({ epId, state: outerState, ep: epProp, proj, bibl
   const [showVersions, setShowVersions] = useState(null); // panelId showing version picker
 
   const generateImage = async (panelId, imgPrompt) => {
-    const eng = imageEngine || "gemini";
-    if (eng === "gemini" && !geminiKey) { alert("Add your Gemini API key in Settings → API Keys to generate images."); return; }
+    const eng = imageEngine || "nanoBanana2";
+    if ((eng === "gemini" || eng === "nanoBanana2") && !geminiKey) { alert("Add your Gemini API key in Settings → API Keys to generate images."); return; }
     if (eng === "dalle" && !openaiKey)  { alert("Add your OpenAI API key in Settings → API Keys to use DALL·E 3."); return; }
     // Pollinations needs no key
     setGeneratingImg(panelId);
@@ -4130,8 +4229,8 @@ function VisualNovelSheetModal({ epId, state: outerState, ep: epProp, proj, bibl
   };
 
   const generateAllImages = async (forceAll = false) => {
-    const eng = imageEngine || "gemini";
-    if (eng === "gemini" && !geminiKey) { alert("Add your Gemini API key in Settings → API Keys to generate images."); return; }
+    const eng = imageEngine || "nanoBanana2";
+    if ((eng === "gemini" || eng === "nanoBanana2") && !geminiKey) { alert("Add your Gemini API key in Settings → API Keys to generate images."); return; }
     if (eng === "dalle" && !openaiKey)  { alert("Add your OpenAI API key in Settings → API Keys to use DALL·E 3."); return; }
     // Pollinations needs no key
     // Only generate panels that don't have a saved image yet (unless forceAll)
@@ -6183,7 +6282,7 @@ function CharacterModal({ char, onSave, onClose, dispatch, geminiKey, openaiKey 
 
   // ── Generate avatar via Gemini
   const handleGenerateAvatar = async () => {
-    if (!geminiKey && imageEngine === "gemini") { setGenError("No Gemini API key — add it in Settings → API Keys."); return; }
+    if (!geminiKey && (imageEngine === "gemini" || imageEngine === "nanoBanana2")) { setGenError("No Gemini API key — add it in Settings → API Keys."); return; }
     if (!form.visualLock && !form.appearance && !form.name) {
       setGenError("Add at least a name and appearance description first."); return;
     }
@@ -7115,7 +7214,7 @@ function PageBible({ state, dispatch }) {
                     for (const char of toGen) {
                       dispatch({type:"SET_CHAR_AVATAR_STATUS", charId:char.id, status:"generating"});
                       try {
-                        const dataUrl = await generateCharacterAvatar({ char, geminiKey:state.geminiKey, openaiKey:state.openaiKey||"", style:"realistic", engine:state.imageEngine||"gemini" });
+                        const dataUrl = await generateCharacterAvatar({ char, geminiKey:state.geminiKey, openaiKey:state.openaiKey||"", style:"realistic", engine:state.imageEngine||"nanoBanana2" });
                         dispatch({type:"SET_CHAR_AVATAR", charId:char.id, avatarUrl:dataUrl, style:"realistic"});
                         dispatch({type:"SET_CHAR_AVATAR_STATUS", charId:char.id, status:"done"});
                         // Save to IDB immediately — survives refresh
@@ -7281,7 +7380,7 @@ function PageBible({ state, dispatch }) {
           dispatch={dispatch}
           geminiKey={state.geminiKey}
           openaiKey={state.openaiKey||""}
-          imageEngine={state.imageEngine||"gemini"}
+          imageEngine={state.imageEngine||"nanoBanana2"}
           onClose={()=>setCharModal(null)}
         />
       )}
@@ -8304,7 +8403,7 @@ function PageEpisodes({ state, dispatch, onGenerateEpisodes, onGenerateAll, save
       {showAddSeg && <AddSegmentModal ep={ep} onAdd={seg=>dispatch({type:"ADD_SEGMENT",episodeId:ep.id,segment:seg})} onClose={()=>setShowAddSeg(false)}/>}
       {showAutoGen && <AutoGenerateModal state={state} dispatch={dispatch} ep={showAutoGen} onClose={()=>setShowAutoGen(null)}/>}
       {showPromptSheet && <SegmentPromptSheetModal ep={ep} proj={proj} allChars={state.bible.characters} dispatch={dispatch} onClose={()=>setShowPromptSheet(false)}/>}
-      {showVN && <VisualNovelSheetModal epId={ep.id} state={state} proj={proj} bible={state.bible} apiKey={state.apiKey} geminiKey={state.geminiKey} openaiKey={state.openaiKey} imageEngine={state.imageEngine||"gemini"} dispatch={dispatch} saveImageToServer={saveImageToServer} onClose={()=>setShowVN(false)}/>}
+      {showVN && <VisualNovelSheetModal epId={ep.id} state={state} proj={proj} bible={state.bible} apiKey={state.apiKey} geminiKey={state.geminiKey} openaiKey={state.openaiKey} imageEngine={state.imageEngine||"nanoBanana2"} dispatch={dispatch} saveImageToServer={saveImageToServer} onClose={()=>setShowVN(false)}/>}
       {showDeleteEp && (
         <div className="overlay">
           <div style={{background:"var(--bg2)",border:"1px solid var(--bR)",borderRadius:12,padding:22,maxWidth:360,width:"92%"}}>
@@ -11629,8 +11728,8 @@ function PageSettings({ state, dispatch }) {
                   onClick={()=>dispatch({type:"SET_IMAGE_ENGINE",engine:eng.id})}
                   style={{
                     flex:"1 1 160px",padding:"12px 14px",borderRadius:9,cursor:"pointer",textAlign:"left",
-                    border:`2px solid ${(state.imageEngine||"gemini")===eng.id ? "var(--gold)" : "var(--ln)"}`,
-                    background:(state.imageEngine||"gemini")===eng.id ? "rgba(201,168,76,.08)" : "var(--bg3)",
+                    border:`2px solid ${(state.imageEngine||"nanoBanana2")===eng.id ? "var(--gold)" : "var(--ln)"}`,
+                    background:(state.imageEngine||"nanoBanana2")===eng.id ? "rgba(201,168,76,.08)" : "var(--bg3)",
                     transition:"all .15s",
                   }}>
                   <div style={{display:"flex",alignItems:"center",gap:6,marginBottom:4}}>
@@ -11646,17 +11745,17 @@ function PageSettings({ state, dispatch }) {
                 </button>
               ))}
             </div>
-            {(state.imageEngine||"gemini")==="pollinations" && (
+            {(state.imageEngine||"nanoBanana2")==="pollinations" && (
               <div className="callout co-green" style={{fontSize:13}}>
                 ✓ <strong>No API key needed.</strong> Pollinations is completely free — just click Generate.
               </div>
             )}
           </div>
 
-          {/* ── GEMINI KEY (only if engine=gemini) ── */}
-          {(state.imageEngine||"gemini")==="gemini" && (
+          {/* ── GEMINI KEY (if engine=nanoBanana2 or gemini) ── */}
+          {((state.imageEngine||"nanoBanana2")==="nanoBanana2" || (state.imageEngine||"nanoBanana2")==="gemini") && (
           <div className="card" style={{marginBottom:14}}>
-            <div className="card-t" style={{marginBottom:14}}>Google Gemini API Key <span style={{fontSize:13,color:"var(--t3)",fontWeight:"normal"}}>— for Gemini image engine</span></div>
+            <div className="card-t" style={{marginBottom:14}}>Google Gemini API Key <span style={{fontSize:13,color:"var(--t3)",fontWeight:"normal"}}>— for Nano Banana 2 / Gemini image engine</span></div>
             <div className="fg"><label className="fl">Key</label><input className="fi" type="password" value={geminiKeyInput} onChange={e=>setGeminiKeyInput(e.target.value)} placeholder="AIzaSy..."/></div>
             <div className="callout co-blue" style={{fontSize:13,marginBottom:10}}>Get a free key at <strong>aistudio.google.com</strong>. Free tier: 1500 image generations/day.</div>
             <button className="btn btn-gold" onClick={()=>{dispatch({type:"SET_GEMINI",key:geminiKeyInput});localStorage.setItem("ds_gemini",JSON.stringify({key:geminiKeyInput}));}}>Save Key</button>
@@ -11951,8 +12050,8 @@ function AiDirectorChat({ state, dispatch }) {
           // Avatar generation — runs sequentially so Gemini isn't overwhelmed
           if (a.target === "generate_avatar") {
             const gemKey = state.geminiKey;
-            const eng = state.imageEngine || "gemini";
-            if (eng === "gemini" && !gemKey) {
+            const eng = state.imageEngine || "nanoBanana2";
+            if ((eng === "gemini" || eng === "nanoBanana2") && !gemKey) {
               dispatch({type:"ADD_CHAT_MSG", msg:{id:Date.now()+2, role:"ai", text:"⚠ No Gemini API key set. Add it in Settings → API Keys first.", actions:null, applied:false}});
               break;
             }
@@ -11971,7 +12070,7 @@ function AiDirectorChat({ state, dispatch }) {
             (async () => {
               for (const char of charsToGen) {
                 try {
-                  const dataUrl = await generateCharacterAvatar({ char, geminiKey:gemKey, openaiKey:state.openaiKey||"", style, engine:state.imageEngine||"gemini" });
+                  const dataUrl = await generateCharacterAvatar({ char, geminiKey:gemKey, openaiKey:state.openaiKey||"", style, engine:state.imageEngine||"nanoBanana2" });
                   dispatch({type:"SET_CHAR_AVATAR", charId:char.id, avatarUrl:dataUrl, style});
                   dispatch({type:"SET_CHAR_AVATAR_STATUS", charId:char.id, status:"done"});
                   // Save to IDB immediately — survives refresh
@@ -12118,7 +12217,7 @@ Failed: ${failed.join(", ")}` : ""),
         <span className={`ctx-chip ${viewLabels[state.view]?"hi":""}`}>📍 {viewLabels[state.view]||state.view}</span>
         {ep&&<span className="ctx-chip hi">🎬 EP{String(ep.num).padStart(3,"0")}</span>}
         {ep&&<span className="ctx-chip" style={{background:"rgba(148,100,200,.12)",color:"#c49eff"}}>🎌 {VN_STYLES[ep.vnStyle||"cinematic"]?.label||ep.vnStyle||"cinematic"}{ep.vnStylePromptPrefix?" (custom)":""}</span>}
-        {(() => { const eng = IMAGE_ENGINES[state.imageEngine||"gemini"]||IMAGE_ENGINES.gemini; return (
+        {(() => { const eng = IMAGE_ENGINES[state.imageEngine||"nanoBanana2"]||IMAGE_ENGINES.gemini; return (
           <span className="ctx-chip" style={{background: eng.free?"rgba(52,211,153,.08)":"rgba(248,180,0,.08)", color: eng.free?"#34d399":"#f8b400"}}>
             {eng.icon} {eng.badge}
           </span>
@@ -14036,7 +14135,7 @@ function AppMain({ authedUser, onSignOut }) {
           activeProject: fullSaved.activeProject || fullSaved.projects[0]?.id,
           activeEpisode: fullSaved.activeEpisode || null,
           view:          fullSaved.view        || "dashboard",
-          imageEngine:   fullSaved.imageEngine  || "gemini",
+          imageEngine:   fullSaved.imageEngine  || "nanoBanana2",
           openaiKey:     fullSaved.openaiKey    || "",
           jimengKey:     fullSaved.jimengKey    || "",
           jimengModel:   fullSaved.jimengModel  || "seedance_v2",
