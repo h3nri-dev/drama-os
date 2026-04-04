@@ -2479,6 +2479,194 @@ async function callGeneratorAPI(apiKey, userPrompt, onProgress) {
   return parsed;
 }
 
+// ── Book-to-project adapter system prompt
+const BOOK_ADAPTER_SYSTEM = `You are a professional drama/game series production designer and story architect specializing in book adaptations.
+The user will provide book source material (excerpt or full text) along with adaptation parameters.
+Your job is to adapt it into a complete, production-ready Drama Studio project.
+
+Return ONLY a valid JSON object — no markdown fences, no commentary, no preamble. Just the raw JSON.
+
+The JSON must match this exact structure:
+
+{
+  "project": {
+    "id": "<slug-id based on book title>",
+    "name": "<Adapted Series Title>",
+    "type": "drama" | "game" | "anime" | "film",
+    "color": "<hex color that represents the show's visual identity>",
+    "genre": "<Genre / Subgenre derived from the source material>",
+    "status": "active",
+    "episodes": <total episode count as specified by user>,
+    "epRuntime": <seconds per episode as specified by user>,
+    "desc": "<2-3 sentence production summary — mention source book and adaptation approach>"
+  },
+
+  "bible": {
+    "characters": [
+      {
+        "id": "<slug>",
+        "name": "<Full Name from book>",
+        "age": <integer>,
+        "role": "<Role in story>",
+        "archetype": "The <Archetype>",
+        "appearance": "<Precise visual description — hair, build, clothes, presence>",
+        "motivation": "<What they want above all else>",
+        "secret": "<What they hide — the thing that would change everything if known>",
+        "arc": "<One sentence: where they start → where they end>",
+        "relationships": ["<other char id>", ...],
+        "firstEp": <integer — episode they first appear>,
+        "refStatus": "done" | "pending",
+        "seed": <integer 7001-9999>,
+        "color": "<hex — their personal color on the relationship map>",
+        "flags": []
+      }
+      // Extract all major and supporting characters from the book — 4-10 characters
+    ],
+    "relationships": [
+      {
+        "from": "<char id>",
+        "to": "<char id>",
+        "type": "family"|"employer"|"alliance"|"rivalry"|"trust"|"complicity"|"unknown"|"romantic",
+        "label": "<20-word max description of the relationship>",
+        "weight": <1-5 integer — emotional significance>,
+        "tension": "critical"|"high"|"medium"|"low"
+      }
+    ],
+    "worldFacts": [
+      {
+        "id": "wf1",
+        "category": "<Category Name>",
+        "fact": "<One grounded true statement about the world from the book>",
+        "flags": []
+      }
+      // 6-10 world facts covering setting, rules, society, key locations
+    ],
+    "endings": [
+      {
+        "id": "<slug>",
+        "label": "<Ending Title>",
+        "desc": "<2 sentence description — may diverge from book for dramatic effect>",
+        "prob": <integer — starting probability, all must sum to 100>,
+        "color": "<hex>"
+      }
+      // 4-5 distinct possible endings
+    ],
+    "decisionPoints": [
+      {
+        "id": "dp1",
+        "ep": <episode number>,
+        "label": "<Short name for this decision>",
+        "desc": "<The situation and question the player faces>",
+        "options": ["<Option A>", "<Option B>", "<Option C>"]
+      }
+      // 3-5 major decision points spread across the series
+    ]
+  },
+
+  "episodes": [
+    {
+      "id": "ep01",
+      "num": 1,
+      "title": "<Episode Title>",
+      "status": "not_started",
+      "segments": [
+        {
+          "id": "s01",
+          "type": "A"|"B"|"C"|"D"|"E"|"F"|"G"|"H",
+          "scene": "<scene_slug>",
+          "dur": <duration in seconds, 4-12>,
+          "seed": <integer matching the scene's seed group>,
+          "status": "pending",
+          "chars": ["<char id>", ...],
+          "bridge": <boolean>,
+          "prompt": "<Full cinematic video generation prompt>",
+          "clue": "<clue code or empty string>",
+          "notes": "<production note or empty string>"
+        }
+        // 15-22 segments per scripted episode
+      ]
+    }
+    // Generate episodes 1, 2, and 3 in full with complete segments
+    // Then generate stub episodes for episodes 4 through total_episodes:
+    // { "id":"ep04", "num":4, "title":"<title adapted from book>", "status":"not_started", "segments":[] }
+    // Distribute the book's plot across all episode stubs logically
+  ],
+
+  "assets": [
+    {
+      "name": "<Asset Name>",
+      "type": "logo"|"video"|"audio"|"image"|"doc",
+      "format": "<FILE FORMAT>",
+      "tags": ["<tag>", ...],
+      "thumb": "<single emoji>",
+      "size": "<estimated size>"
+    }
+    // 5-8 assets appropriate for this adaptation
+  ]
+}
+
+SEGMENT TYPE GUIDE:
+- A: Wide establishing shot (no characters). STYLE LOCK required.
+- B: Character introduction or solo action shot. Needs @image1 CHARNAME: description.
+- C: Dialogue scene. Include DIALOGUE: 'exact words' in prompt.
+- D: Reaction / emotional beat. Close-up focus.
+- E: Action or physical event.
+- F: Detail / clue shot. EXTREME CLOSE-UP of object, document, symbol.
+- G: Transition / corridor / atmosphere.
+- H: Final frame / episode closing shot.
+
+ADAPTATION RULES:
+- Stay faithful to the source material's characters, relationships, and plot structure
+- Distribute the book's story arc across all episodes evenly
+- For the first 3 episodes, adapt the opening chapters into fully scripted scenes
+- For stub episodes, derive titles and implied content from the book's plot progression
+- If the book text is an excerpt, infer the full story arc from context and genre conventions
+- Preserve the author's tone and themes in the cinematic prompts
+
+Be bold, specific, and production-ready. This is a real production document.`;
+
+async function callBookToProjectAPI(apiKey, bookText, totalEpisodes, epRuntimeSecs, onProgress) {
+  onProgress("Analyzing book content…", 5);
+
+  const userPrompt = `Adapt the following book/source material into a drama series.
+
+ADAPTATION PARAMETERS:
+- Total episodes: ${totalEpisodes}
+- Episode runtime: ${epRuntimeSecs} seconds (${Math.round(epRuntimeSecs/60)} minutes each)
+
+SOURCE MATERIAL:
+---
+${bookText.slice(0, 12000)}
+---
+${bookText.length > 12000 ? `\n[Note: Source material truncated to 12,000 characters for processing. Full text is ${bookText.length} characters.]` : ""}
+
+Generate the complete project JSON following the schema exactly. Extract all characters, relationships, and world facts from the source material. Distribute the story across all ${totalEpisodes} episodes.`;
+
+  const resp = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01", "anthropic-dangerous-direct-browser-access": "true" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-6",
+      max_tokens: 8000,
+      system: BOOK_ADAPTER_SYSTEM,
+      messages: [{ role: "user", content: userPrompt }]
+    })
+  });
+  onProgress("Receiving adapted project…", 30);
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err?.error?.message || `API error ${resp.status}`);
+  }
+  const data = await resp.json();
+  const raw = data.content?.[0]?.text || "";
+  onProgress("Parsing structure…", 75);
+  const jsonMatch = raw.match(/\{[\s\S]*\}/);
+  if (!jsonMatch) throw new Error("No JSON returned — check API key or try again.");
+  const parsed = JSON.parse(jsonMatch[0]);
+  onProgress("Validating adaptation…", 92);
+  return parsed;
+}
+
 async function callEpisodeGeneratorAPI(apiKey, state, fromEp, toEp, onProgress) {
   const proj = state.projects.find(p => p.id === state.activeProject);
   const allChars = state.bible.characters;
@@ -5567,6 +5755,342 @@ function ProjectGenerator({ apiKey, onGenerated, onClose }) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// BOOK TO PROJECT MODAL — upload or paste a book, generate entire project
+// ═══════════════════════════════════════════════════════════════════
+function BookToProjectModal({ apiKey, onGenerated, onClose, existingProject }) {
+  const [step, setStep]             = useState("config"); // config | generating | preview
+  const [bookText, setBookText]     = useState("");
+  const [fileName, setFileName]     = useState("");
+  const [totalEpisodes, setTotalEpisodes] = useState(12);
+  const [epMinutes, setEpMinutes]   = useState(3);
+  const [progress, setProgress]     = useState(0);
+  const [progressMsg, setProgressMsg] = useState("");
+  const [generated, setGenerated]   = useState(null);
+  const [error, setError]           = useState(null);
+  const [previewTab, setPreviewTab] = useState("project");
+  const [animatedSections, setAnimatedSections] = useState([]);
+  const fileInputRef = useRef(null);
+
+  const SECTIONS = [
+    { key:"project",    label:"Project",      icon:"⊞" },
+    { key:"characters", label:"Characters",   icon:"🎭" },
+    { key:"world",      label:"World Facts",  icon:"🌍" },
+    { key:"episodes",   label:"Episodes",     icon:"🎬" },
+    { key:"assets",     label:"Assets",       icon:"🗂" },
+  ];
+
+  const onFileChange = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setFileName(file.name);
+    const reader = new FileReader();
+    reader.onload = (ev) => {
+      const text = ev.target.result;
+      setBookText(typeof text === "string" ? text : "");
+    };
+    // For PDF files, read as text (works for text-layer PDFs)
+    reader.readAsText(file);
+  };
+
+  const generate = async () => {
+    if (!bookText.trim()) { setError("Please upload or paste book content."); return; }
+    if (!apiKey) { setError("No API key set. Go to Settings → Anthropic API Key."); return; }
+    setStep("generating"); setError(null); setAnimatedSections([]);
+
+    const steps = [
+      [8,  "Reading source material…"],
+      [18, "Identifying characters…"],
+      [30, "Mapping relationships…"],
+      [42, "Building story bible…"],
+      [55, "Adapting Episode 1…"],
+      [67, "Adapting Episode 2…"],
+      [78, "Adapting Episode 3…"],
+      [88, "Planning episode arc…"],
+      [94, "Assembling assets list…"],
+    ];
+    let si = 0;
+    const ticker = setInterval(() => {
+      if (si < steps.length) { setProgress(steps[si][0]); setProgressMsg(steps[si][1]); si++; }
+    }, 1800);
+
+    try {
+      const data = await callBookToProjectAPI(apiKey, bookText, totalEpisodes, epMinutes * 60,
+        (msg, pct) => { setProgressMsg(msg); setProgress(pct); });
+      clearInterval(ticker);
+      setProgress(100); setProgressMsg("Adaptation ready!");
+      setGenerated(data);
+      const keys = ["project","characters","world","episodes","assets"];
+      keys.forEach((k, i) => setTimeout(() => setAnimatedSections(prev => [...prev, k]), i * 180));
+      setTimeout(() => setStep("preview"), 600);
+    } catch (e) {
+      clearInterval(ticker);
+      setError(e.message);
+      setStep("config");
+    }
+  };
+
+  const commit = () => {
+    if (!generated) return;
+    onGenerated(generated);
+    onClose();
+  };
+
+  const epRuntimeSecs = epMinutes * 60;
+
+  return (
+    <div className="overlay" onClick={e => e.target===e.currentTarget && onClose()}>
+      <div style={{
+        background:"var(--bg2)", border:"1px solid rgba(201,168,76,0.3)", borderRadius:16,
+        width:"90vw", maxWidth:900, maxHeight:"90vh", display:"flex", flexDirection:"column",
+        overflow:"hidden", boxShadow:"0 40px 100px rgba(0,0,0,0.8)"
+      }}>
+        {/* Header */}
+        <div style={{padding:"20px 24px 16px", borderBottom:"1px solid var(--ln)", flexShrink:0, display:"flex", alignItems:"flex-start", justifyContent:"space-between"}}>
+          <div>
+            <div style={{fontFamily:"Cormorant Garamond,serif", fontSize:25, color:"var(--gold2)", fontWeight:700}}>
+              {step==="config" ? "📚 From Book" : step==="generating" ? "📚 Adapting…" : "📚 Review Adaptation"}
+            </div>
+            <div style={{fontSize:15, color:"var(--t3)", marginTop:3}}>
+              {step==="config" ? "Upload or paste a book. Claude will extract characters, world, and adapt the full story arc." :
+               step==="generating" ? `Adapting source material into ${totalEpisodes} episodes × ${epMinutes} min each.` :
+               "Review the generated project. Click Commit to load it into the system."}
+            </div>
+          </div>
+          <button className="btn btn-ghost btn-sm" onClick={onClose} style={{flexShrink:0, marginTop:3}}>✕</button>
+        </div>
+
+        {/* Body */}
+        <div style={{flex:1, overflow:"hidden", display:"flex", flexDirection:"column"}}>
+
+          {/* CONFIG STEP */}
+          {step==="config" && (
+            <div style={{flex:1, overflow:"auto", padding:"20px 24px"}}>
+              {error && <div className="callout co-red" style={{marginBottom:14}}>⚠ {error}</div>}
+
+              {/* Episode parameters */}
+              <div className="fr2" style={{marginBottom:18}}>
+                <div className="fg">
+                  <label className="fl">Total Episodes</label>
+                  <input className="fi" type="number" min="1" max="100" value={totalEpisodes}
+                    onChange={e=>setTotalEpisodes(Math.max(1,Number(e.target.value)))}/>
+                </div>
+                <div className="fg">
+                  <label className="fl">Episode Length (minutes)</label>
+                  <select className="fs" value={epMinutes} onChange={e=>setEpMinutes(Number(e.target.value))}>
+                    {[1,2,3,5,7,10,15,20,30,45,60].map(m=><option key={m} value={m}>{m} min ({m*60}s)</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* File upload */}
+              <div className="fg" style={{marginBottom:10}}>
+                <label className="fl">Upload Book File (.txt, .pdf, .md)</label>
+                <div style={{display:"flex", gap:8, alignItems:"center"}}>
+                  <button className="btn btn-ghost" onClick={()=>fileInputRef.current?.click()}>
+                    📁 Choose File
+                  </button>
+                  {fileName && <span style={{fontSize:14, color:"var(--green2)"}}>✓ {fileName}</span>}
+                  <input ref={fileInputRef} type="file" accept=".txt,.pdf,.md,.epub,.rtf"
+                    style={{display:"none"}} onChange={onFileChange}/>
+                </div>
+              </div>
+
+              {/* Text area */}
+              <div className="fg">
+                <label className="fl">Or paste book text directly</label>
+                <textarea className="ft" value={bookText} onChange={e=>{setBookText(e.target.value);setFileName("");}}
+                  style={{minHeight:240, fontFamily:"DM Sans,sans-serif", fontSize:15, lineHeight:1.7}}
+                  placeholder={"Paste the full text or excerpt of your book here.\n\nTips:\n• Include the opening chapters for best episode 1-3 quality\n• The more text you provide, the better character extraction\n• 3,000–12,000 characters works well\n• Claude will infer the full arc from what you provide"}
+                />
+                {bookText.length > 0 && (
+                  <div style={{fontSize:13, color:"var(--t3)", marginTop:5, textAlign:"right"}}>
+                    {bookText.length.toLocaleString()} characters · ~{Math.round(bookText.length/5)} words
+                    {bookText.length > 12000 && <span style={{color:"var(--amber2)"}}> · first 12K chars will be used</span>}
+                  </div>
+                )}
+              </div>
+
+              <div className="callout co-blue" style={{marginTop:14}}>
+                <strong style={{color:"var(--blue2)"}}>What gets generated:</strong>{" "}
+                Full characters + relationships extracted from the book ·{" "}
+                World facts and lore ·{" "}
+                {totalEpisodes} episodes ({3} scripted + {Math.max(0,totalEpisodes-3)} stubs) ·{" "}
+                Story arc distributed across all episodes · Asset list
+              </div>
+            </div>
+          )}
+
+          {/* GENERATING STEP */}
+          {step==="generating" && (
+            <div style={{flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", padding:40}}>
+              <div style={{width:340, textAlign:"center"}}>
+                <div style={{fontFamily:"Cormorant Garamond,serif", fontSize:32, color:"var(--gold2)", marginBottom:6, fontStyle:"italic"}}>{progressMsg}</div>
+                <div style={{fontSize:15, color:"var(--t3)", marginBottom:28}}>
+                  Adapting {totalEpisodes} episodes × {epMinutes} min. Takes about 30–60 seconds.
+                </div>
+                <div className="prog-track" style={{height:4, marginBottom:12}}>
+                  <div className="prog-fill" style={{width:`${progress}%`, background:"var(--gold)", height:"100%"}}/>
+                </div>
+                <div style={{fontFamily:"JetBrains Mono,monospace", fontSize:14, color:"var(--t3)"}}>{progress}%</div>
+                <div style={{marginTop:32, display:"flex", flexDirection:"column", gap:7, textAlign:"left"}}>
+                  {[
+                    "Parsing source material",
+                    "Extracting characters",
+                    "Mapping relationships",
+                    "Building world facts",
+                    "Writing story bible",
+                    "Distributing plot arc",
+                    "Episode 1 — full scene script",
+                    "Episode 2 — full scene script",
+                    "Episode 3 — full scene script",
+                    `All ${totalEpisodes} episode stubs + titles`,
+                    "Asset suggestions",
+                  ].map((item, i) => {
+                    const pct = (i / 10) * 100;
+                    const done = progress > pct + 5;
+                    const active = progress >= pct && progress <= pct + 12;
+                    return (
+                      <div key={i} style={{display:"flex", alignItems:"center", gap:9, opacity: done?1:active?0.9:0.3, transition:"opacity .4s"}}>
+                        <div style={{width:14, height:14, borderRadius:"50%", flexShrink:0, border:`1px solid ${done?"var(--green)":active?"var(--gold)":"var(--t4)"}`, background:done?"var(--green)":active?"var(--gold)":"transparent", display:"flex", alignItems:"center", justifyContent:"center", fontSize:12, color:"var(--bg)", transition:"all .3s"}}>
+                          {done?"✓":""}
+                        </div>
+                        <span style={{fontSize:14, color:done?"var(--t1)":active?"var(--gold2)":"var(--t3)"}}>{item}</span>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* PREVIEW STEP */}
+          {step==="preview" && generated && (
+            <div style={{flex:1, display:"flex", overflow:"hidden"}}>
+              <div style={{width:150, borderRight:"1px solid var(--ln)", padding:"14px 8px", flexShrink:0, overflowY:"auto"}}>
+                {SECTIONS.map(s => {
+                  const isReady = animatedSections.includes(s.key);
+                  return (
+                    <div key={s.key}
+                      className={previewTab===s.key?"nav-item on":"nav-item"}
+                      style={{opacity:isReady?1:0.3, transition:"opacity .3s", fontSize:14}}
+                      onClick={()=>isReady&&setPreviewTab(s.key)}>
+                      <span style={{fontSize:17}}>{s.icon}</span> {s.label}
+                    </div>
+                  );
+                })}
+              </div>
+              <div style={{flex:1, overflow:"auto", padding:"18px 20px"}}>
+                {previewTab==="project" && generated.project && (
+                  <div>
+                    <div style={{display:"flex", alignItems:"center", gap:10, marginBottom:16}}>
+                      <div style={{width:12, height:12, borderRadius:"50%", background:generated.project.color}}/>
+                      <div style={{fontFamily:"Cormorant Garamond,serif", fontSize:24, color:"var(--gold2)", fontWeight:700}}>{generated.project.name}</div>
+                    </div>
+                    <div style={{fontSize:15, color:"var(--t2)", lineHeight:1.7, marginBottom:14}}>{generated.project.desc}</div>
+                    <div className="g2" style={{gap:10}}>
+                      {[["Genre",generated.project.genre],["Type",generated.project.type],["Episodes",generated.project.episodes],["Runtime",`${Math.round((generated.project.epRuntime||180)/60)} min/ep`]].map(([k,v])=>(
+                        <div key={k} style={{background:"var(--bg3)", borderRadius:8, padding:"10px 14px", border:"1px solid var(--ln)"}}>
+                          <div style={{fontSize:12, color:"var(--t3)", letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:4}}>{k}</div>
+                          <div style={{fontSize:16, color:"var(--t1)"}}>{v}</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {previewTab==="characters" && (
+                  <div style={{display:"flex", flexDirection:"column", gap:12}}>
+                    {(generated.bible?.characters||[]).map(c=>(
+                      <div key={c.id} style={{background:"var(--bg3)", borderRadius:9, padding:"14px 16px", border:"1px solid var(--ln)"}}>
+                        <div style={{display:"flex", alignItems:"center", gap:8, marginBottom:6}}>
+                          <div style={{width:10, height:10, borderRadius:"50%", background:c.color||"var(--gold)"}}/>
+                          <div style={{fontFamily:"Cormorant Garamond,serif", fontSize:19, color:"var(--gold2)", fontWeight:700}}>{c.name}</div>
+                          <span style={{fontSize:13, color:"var(--t3)"}}>{c.role}</span>
+                        </div>
+                        <div style={{fontSize:14, color:"var(--t3)", marginBottom:4}}><strong style={{color:"var(--t2)"}}>Arc:</strong> {c.arc}</div>
+                        <div style={{fontSize:14, color:"var(--t3)"}}><strong style={{color:"var(--t2)"}}>Secret:</strong> {c.secret}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {previewTab==="world" && (
+                  <div style={{display:"flex", flexDirection:"column", gap:10}}>
+                    {(generated.bible?.worldFacts||[]).map(f=>(
+                      <div key={f.id} style={{background:"var(--bg3)", borderRadius:8, padding:"12px 14px", border:"1px solid var(--ln)"}}>
+                        <div style={{fontSize:12, color:"var(--green2)", letterSpacing:"1.5px", textTransform:"uppercase", marginBottom:4}}>{f.category}</div>
+                        <div style={{fontSize:15, color:"var(--t1)"}}>{f.fact}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {previewTab==="episodes" && (
+                  <div style={{display:"flex", flexDirection:"column", gap:8}}>
+                    {(generated.episodes||[]).map(ep=>(
+                      <div key={ep.id} style={{display:"flex", alignItems:"center", gap:12, background:"var(--bg3)", borderRadius:8, padding:"10px 14px", border:"1px solid var(--ln)"}}>
+                        <div style={{fontFamily:"JetBrains Mono,monospace", fontSize:13, color:"var(--t3)", width:32, flexShrink:0}}>{String(ep.num).padStart(2,"0")}</div>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:15, color:"var(--t1)"}}>{ep.title}</div>
+                        </div>
+                        <div style={{fontSize:13, color: ep.segments?.length>0?"var(--green2)":"var(--t4)"}}>
+                          {ep.segments?.length>0 ? `${ep.segments.length} segments` : "stub"}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {previewTab==="assets" && (
+                  <div style={{display:"flex", flexDirection:"column", gap:8}}>
+                    {(generated.assets||[]).map((a,i)=>(
+                      <div key={i} style={{display:"flex", alignItems:"center", gap:12, background:"var(--bg3)", borderRadius:8, padding:"10px 14px", border:"1px solid var(--ln)"}}>
+                        <span style={{fontSize:22}}>{a.thumb||"📄"}</span>
+                        <div style={{flex:1}}>
+                          <div style={{fontSize:15, color:"var(--t1)"}}>{a.name}</div>
+                          <div style={{fontSize:13, color:"var(--t3)"}}>{a.type} · {a.format} · {a.size}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Footer */}
+        <div style={{padding:"14px 24px", borderTop:"1px solid var(--ln)", flexShrink:0, display:"flex", alignItems:"center", justifyContent:"space-between"}}>
+          {step==="config" && (
+            <>
+              <div style={{fontSize:14, color:"var(--t3)"}}>
+                {existingProject ? `Will replace current project: ${existingProject}` : "Will create a new project"}
+              </div>
+              <div style={{display:"flex", gap:8}}>
+                <button className="btn btn-ghost" onClick={onClose}>Cancel</button>
+                <button className="btn btn-gold" disabled={!bookText.trim()||!apiKey} onClick={generate}>
+                  📚 Generate Adaptation
+                </button>
+              </div>
+            </>
+          )}
+          {step==="generating" && (
+            <div style={{fontSize:14, color:"var(--t3)"}}>Claude is adapting your source material…</div>
+          )}
+          {step==="preview" && (
+            <>
+              <div style={{fontSize:14, color:"var(--t3)"}}>
+                {(generated?.episodes||[]).length} episodes · {(generated?.bible?.characters||[]).length} characters
+              </div>
+              <div style={{display:"flex", gap:8}}>
+                <button className="btn btn-ghost" onClick={()=>{setStep("config");setGenerated(null);}}>← Regenerate</button>
+                <button className="btn btn-gold" onClick={commit}>✦ Commit to Project</button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // EPISODE GENERATOR MODAL — generate N more episodes on demand
 // ═══════════════════════════════════════════════════════════════════
 function EpisodeGenerator({ state, apiKey, onGenerated, onClose }) {
@@ -5954,7 +6478,7 @@ function NewProjectManualModal({ onAdd, onClose }) {
   );
 }
 
-function PageDashboard({ state, dispatch, onGenerate }) {
+function PageDashboard({ state, dispatch, onGenerate, onFromBook }) {
   const proj = state.projects.find(p=>p.id===state.activeProject);
   const eps = state.episodes.filter(e=>e.project===state.activeProject);
   const allSegs = eps.reduce((a,e)=>a+e.segments.length,0);
@@ -5971,12 +6495,18 @@ function PageDashboard({ state, dispatch, onGenerate }) {
       <div style={{textAlign:"center",paddingTop:80,paddingBottom:40}}>
         <div style={{fontFamily:"Cormorant Garamond,serif",fontSize:40,color:"var(--gold2)",fontWeight:700,marginBottom:10}}>Nekoi Studio</div>
         <div style={{fontSize:17,color:"var(--t3)",marginBottom:48}}>Production OS for AI-generated drama and game series</div>
-        <div className="g2" style={{maxWidth:620,margin:"0 auto",textAlign:"left"}}>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:14,maxWidth:900,margin:"0 auto",textAlign:"left"}}>
           <div className="card" style={{borderColor:"rgba(201,168,76,.3)",background:"linear-gradient(135deg,rgba(201,168,76,.08),rgba(201,168,76,.02))",cursor:"pointer",padding:24}} onClick={onGenerate}>
             <div style={{fontSize:32,marginBottom:12}}>✦</div>
-            <div style={{fontFamily:"Cormorant Garamond,serif",fontSize:21,color:"var(--gold2)",fontWeight:700,marginBottom:8}}>Generate Project with AI</div>
+            <div style={{fontFamily:"Cormorant Garamond,serif",fontSize:21,color:"var(--gold2)",fontWeight:700,marginBottom:8}}>Generate from Concept</div>
             <div style={{fontSize:15,color:"var(--t3)",lineHeight:1.7}}>Paste your concept. Claude generates the complete story bible, characters, relationship map, first 3 scripted episodes, and all stubs — in one shot.</div>
-            <div style={{marginTop:14,fontSize:15,color:"var(--gold)",fontFamily:"JetBrains Mono,monospace"}}>Requires Anthropic API key →</div>
+            <div style={{marginTop:14,fontSize:15,color:"var(--gold)",fontFamily:"JetBrains Mono,monospace"}}>Requires API key →</div>
+          </div>
+          <div className="card" style={{borderColor:"rgba(72,120,200,.3)",background:"linear-gradient(135deg,rgba(72,120,200,.08),rgba(72,120,200,.02))",cursor:"pointer",padding:24}} onClick={onFromBook}>
+            <div style={{fontSize:32,marginBottom:12}}>📚</div>
+            <div style={{fontFamily:"Cormorant Garamond,serif",fontSize:21,color:"var(--blue2)",fontWeight:700,marginBottom:8}}>Adapt from Book</div>
+            <div style={{fontSize:15,color:"var(--t3)",lineHeight:1.7}}>Upload or paste a book. Claude extracts all characters, world facts, and adapts the story arc into your specified number of episodes.</div>
+            <div style={{marginTop:14,fontSize:15,color:"var(--blue2)",fontFamily:"JetBrains Mono,monospace"}}>Requires API key →</div>
           </div>
           <div className="card" style={{cursor:"pointer",padding:24}} onClick={()=>setShowManualNew(true)}>
             <div style={{fontSize:32,marginBottom:12}}>📋</div>
@@ -6005,6 +6535,7 @@ function PageDashboard({ state, dispatch, onGenerate }) {
         <div className="ph-r">
           <button className="btn btn-ghost btn-sm" onClick={()=>{setProjForm({...proj});setEditingProj(true);}}>✎ Edit</button>
           <button className="btn btn-ghost btn-sm" onClick={onGenerate}>✦ Generate from Prompt</button>
+          <button className="btn btn-ghost btn-sm" onClick={onFromBook}>📚 From Book</button>
           <div className={`api-pill ${state.apiKey?"api-on":"api-off"}`}>
             <span className={`badge-dot${state.apiKey?" pulse":""}`}/>{state.apiKey?"AI Active":"No Key"}
           </div>
@@ -14118,9 +14649,10 @@ function AppMain({ authedUser, onSignOut }) {
     })();
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const [showGenerator,  setShowGenerator]  = useState(false);
-  const [showEpGenerator,setShowEpGenerator] = useState(false);
-  const [showManualNew,  setShowManualNew]   = useState(false);
+  const [showGenerator,     setShowGenerator]     = useState(false);
+  const [showBookGenerator, setShowBookGenerator] = useState(false);
+  const [showEpGenerator,   setShowEpGenerator]   = useState(false);
+  const [showManualNew,     setShowManualNew]      = useState(false);
   const [showAuthModal,  setShowAuthModal]   = useState(false);
   const [showAutoQueue,  setShowAutoQueue]   = useState(false); // auto-pipeline after project commit
 
@@ -14273,6 +14805,9 @@ function AppMain({ authedUser, onSignOut }) {
             <div className="nav-item" style={{color:"var(--t4)",fontSize:14}} onClick={()=>setShowGenerator(true)}>
               <span className="nav-icon">✦</span>Generate New
             </div>
+            <div className="nav-item" style={{color:"var(--t4)",fontSize:14}} onClick={()=>setShowBookGenerator(true)}>
+              <span className="nav-icon">📚</span>From Book
+            </div>
             <div className="nav-item" style={{color:"var(--t4)",fontSize:14}} onClick={()=>setShowManualNew(true)}>
               <span className="nav-icon">+</span>New Blank
             </div>
@@ -14340,7 +14875,7 @@ function AppMain({ authedUser, onSignOut }) {
 
           <div className="body">
             <div className="page">
-              {state.view==="dashboard"&&<PageDashboard state={state} dispatch={dispatch} onGenerate={()=>setShowGenerator(true)}/>}
+              {state.view==="dashboard"&&<PageDashboard state={state} dispatch={dispatch} onGenerate={()=>setShowGenerator(true)} onFromBook={()=>setShowBookGenerator(true)}/>}
               {state.view==="bible"    &&<PageBible state={state} dispatch={dispatch}/>}
               {state.view==="assets"  &&<PageAssets state={state} dispatch={dispatch}/>}
               {state.view==="episodes"&&<PageEpisodes state={state} dispatch={dispatch} onGenerateEpisodes={()=>setShowEpGenerator(true)} onGenerateAll={()=>setShowAutoQueue(true)} saveImageToServer={saveImageToServer}/>}
@@ -14357,6 +14892,7 @@ function AppMain({ authedUser, onSignOut }) {
       </div>
 
       {showGenerator && <ProjectGenerator apiKey={state.apiKey} onGenerated={data=>{dispatch({type:"BOOTSTRAP_PROJECT",data});setShowGenerator(false);setShowAutoQueue(true);}} onClose={()=>setShowGenerator(false)}/>}
+      {showBookGenerator && <BookToProjectModal apiKey={state.apiKey} existingProject={state.projects.find(p=>p.id===state.activeProject)?.name||null} onGenerated={data=>{dispatch({type:"BOOTSTRAP_PROJECT",data});setShowBookGenerator(false);setShowAutoQueue(true);}} onClose={()=>setShowBookGenerator(false)}/>}
       {showEpGenerator && <EpisodeGenerator state={state} apiKey={state.apiKey} onGenerated={eps=>dispatch({type:"ADD_GENERATED_EPISODES",episodes:eps})} onClose={()=>setShowEpGenerator(false)}/>}
       {showManualNew && <NewProjectManualModal onAdd={p=>dispatch({type:"ADD_PROJECT",project:p})} onClose={()=>setShowManualNew(false)}/>}
       {showAutoQueue && <AutoQueueModal state={state} dispatch={dispatch} onClose={()=>setShowAutoQueue(false)}/>}
