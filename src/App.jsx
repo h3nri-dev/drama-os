@@ -11672,9 +11672,18 @@ function PageSettings({ state, dispatch }) {
             <button className="btn btn-gold" onClick={()=>dispatch({type:"SET_OPENAI",key:openaiKeyInput})}>Save Key</button>
           </div>
           )}
-          {/* ── ELEVENLABS KEY (for Audiobook) */}
+          {/* ── FISH AUDIO (Primary TTS) */}
           <div className="card" style={{marginBottom:14}}>
-            <div className="card-t" style={{marginBottom:14}}>🎭 ElevenLabs API Key <span style={{fontSize:13,color:"var(--t3)",fontWeight:"normal"}}>— for Audiobook Studio voices</span></div>
+            <div className="card-t" style={{marginBottom:14}}>🐟 Fish Audio <span style={{fontSize:13,color:"var(--t3)",fontWeight:"normal"}}>— high-quality multi-language TTS (S2-Pro)</span></div>
+            <div className="callout co-green" style={{fontSize:13,marginBottom:10}}>
+              {FISH_AUDIO_KEY ? "✓ Fish Audio configured via environment. Ready to generate audiobooks." : "Not configured. Set VITE_FISH_AUDIO_KEY in environment."}
+            </div>
+            <div style={{fontSize:12,color:"var(--t3)"}}>Supports: English, Chinese, Japanese, Korean. 8 built-in voices. Multi-speaker mode with S2-Pro model.</div>
+          </div>
+
+          {/* ── ELEVENLABS KEY (fallback TTS) */}
+          <div className="card" style={{marginBottom:14}}>
+            <div className="card-t" style={{marginBottom:14}}>🎭 ElevenLabs API Key <span style={{fontSize:13,color:"var(--t3)",fontWeight:"normal"}}>— alternative TTS engine</span></div>
             <div className="fg">
               <label className="fl">Key</label>
               <input className="fi" type="password"
@@ -11683,7 +11692,7 @@ function PageSettings({ state, dispatch }) {
                 placeholder="your-elevenlabs-key"
               />
             </div>
-            <div className="callout co-blue" style={{fontSize:13,marginBottom:10}}>Free tier: 10,000 chars/month. Get a key at <strong>elevenlabs.io</strong>. Also works with OpenAI TTS key or free browser voices.</div>
+            <div className="callout co-blue" style={{fontSize:13,marginBottom:10}}>Free tier: 10,000 chars/month. Get a key at <strong>elevenlabs.io</strong>. Fish Audio is preferred when available.</div>
             <button className="btn btn-gold" onClick={()=>{
               const inp = document.getElementById("elevenlabs-key-input");
               if (inp) dispatch({type:"SET_ELEVENLABS", key:inp.value});
@@ -12410,6 +12419,48 @@ async function elevenlabsTTS({ text, voiceId, elevenlabsKey }) {
   return URL.createObjectURL(await res.blob());
 }
 
+// Fish Audio TTS — high-quality multi-language voices
+const FISH_AUDIO_KEY = import.meta.env.VITE_FISH_AUDIO_KEY || "";
+const FISH_VOICES = [
+  { id:"e58b0d7efca34eb38d5c4985e378abcb", name:"Aria (Female, EN)", gender:"female" },
+  { id:"1ede69a0fc124a06ae00c764c59c30c2", name:"Zara (Female, EN)", gender:"female" },
+  { id:"bf0a8c39c2324fd3a2f42f9aa5734f7c", name:"Nova (Female, EN)", gender:"female" },
+  { id:"6e9f1be5a8a14a6082ed69d75c451f80", name:"Atlas (Male, EN)", gender:"male" },
+  { id:"0f30e29cee2c4c1ba1e4c9e52d8e6848", name:"Kai (Male, EN)", gender:"male" },
+  { id:"de7a78e4d1a64a1a930f0688dd24e6e0", name:"Leo (Male, EN)", gender:"male" },
+  { id:"7f92f8bea25241f5a3e5dc1f25dbf3ce", name:"Sakura (Female, JP)", gender:"female" },
+  { id:"5474457dc8974c85b04cb74b33715eea", name:"Narrator (Neutral)", gender:"neutral" },
+];
+
+async function fishAudioTTS({ text, referenceId, temperature=0.7 }) {
+  const key = FISH_AUDIO_KEY;
+  if (!key) throw new Error("Fish Audio API key not configured");
+  const res = await fetch("https://api.fish.audio/v1/tts", {
+    method: "POST",
+    headers: {
+      "Authorization": `Bearer ${key}`,
+      "Content-Type": "application/json",
+      "model": "s2-pro",
+    },
+    body: JSON.stringify({
+      text,
+      reference_id: referenceId || FISH_VOICES[7].id,
+      format: "mp3",
+      mp3_bitrate: 128,
+      temperature,
+      top_p: 0.7,
+      chunk_length: 300,
+      normalize: true,
+      latency: "normal",
+    }),
+  });
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Fish Audio ${res.status}: ${errText.substring(0, 100)}`);
+  }
+  return URL.createObjectURL(await res.blob());
+}
+
 function autoAssignVoices(chars, engine, existingMap={}) {
   const map = { ...existingMap };
   // Browser: get actual OS voices, prefer English
@@ -12425,12 +12476,15 @@ function autoAssignVoices(chars, engine, existingMap={}) {
     if (!bMale.length)   bMale   = pool.filter((_,i)=>i%2===1);
   }
   const femaleV = engine==="openai"     ? ["nova","shimmer","alloy"]
+    : engine==="fish"       ? FISH_VOICES.filter(v=>v.gender==="female").map(v=>v.id)
     : engine==="elevenlabs" ? [ELEVENLABS_VOICES[0].id,ELEVENLABS_VOICES[2].id,ELEVENLABS_VOICES[4].id]
     : bFemale.map(v=>v.name);
   const maleV   = engine==="openai"     ? ["echo","onyx","fable"]
+    : engine==="fish"       ? FISH_VOICES.filter(v=>v.gender==="male").map(v=>v.id)
     : engine==="elevenlabs" ? [ELEVENLABS_VOICES[3].id,ELEVENLABS_VOICES[5].id,ELEVENLABS_VOICES[7].id]
     : bMale.map(v=>v.name);
   const narr    = engine==="openai"     ? "fable"
+    : engine==="fish"       ? FISH_VOICES[7].id
     : engine==="elevenlabs" ? ELEVENLABS_VOICES[0].id
     : narratorV;
   let fi=0, mi=0;
@@ -12456,6 +12510,7 @@ function autoAssignVoices(chars, engine, existingMap={}) {
 // ── Cost estimation per engine (per 1000 chars)
 const VOICE_COSTS = {
   openai:      { rate: 0.015, unit: "1k chars", label: "OpenAI TTS" },
+  fish:        { rate: 0.015, unit: "1k chars", label: "Fish Audio (S2-Pro)" },
   elevenlabs:  { rate: 0.30,  unit: "1k chars", label: "ElevenLabs" },
   browser:     { rate: 0,     unit: "",          label: "Browser (free)" },
 };
@@ -12529,7 +12584,7 @@ function PageAudioBook({ state, dispatch }) {
   const [genMsg, setGenMsg]       = useState("");
   const [genErr, setGenErr]       = useState(null);
   const [voiceEngine, setVoiceEngine] = useState(
-    state.openaiKey ? "openai" : state.elevenlabsKey ? "elevenlabs" : "browser"
+    FISH_AUDIO_KEY ? "fish" : state.openaiKey ? "openai" : state.elevenlabsKey ? "elevenlabs" : "browser"
   );
 
   // Player
@@ -12711,7 +12766,9 @@ function PageAudioBook({ state, dispatch }) {
         if (!url && !isStale) url = audioCache[line.id] || null;
         // 3. Generate fresh TTS
         if (!url) {
-          url = voiceEngine==="openai"
+          url = voiceEngine==="fish"
+            ? await fishAudioTTS({text:line.text, referenceId:voiceId||FISH_VOICES[7].id})
+            : voiceEngine==="openai"
             ? await openaiTTS({text:line.text, voice:voiceId||"nova", openaiKey:state.openaiKey})
             : await elevenlabsTTS({text:line.text, voiceId:voiceId||ELEVENLABS_VOICES[0].id, elevenlabsKey:state.elevenlabsKey});
           setAudioCache(c => ({...c, [line.id]:url}));
@@ -12784,7 +12841,9 @@ function PageAudioBook({ state, dispatch }) {
     for (const line of linesToGen) {
       try {
         const voiceId = voiceMap[line.speaker] || "";
-        const url = voiceEngine === "openai"
+        const url = voiceEngine === "fish"
+          ? await fishAudioTTS({ text: line.text, referenceId: voiceId || FISH_VOICES[7].id })
+          : voiceEngine === "openai"
           ? await openaiTTS({ text: line.text, voice: voiceId || "nova", openaiKey: state.openaiKey })
           : await elevenlabsTTS({ text: line.text, voiceId: voiceId || ELEVENLABS_VOICES[0].id, elevenlabsKey: state.elevenlabsKey });
 
