@@ -9262,11 +9262,22 @@ function useSupabaseSync(state, dispatch) {
     }
   }, [supabaseUrl, supabaseKey]);
 
-  // Trigger initial load after client is ready (avoids stale closure on loadFromServer)
+  // Trigger initial load after client is ready — always sync from server
   useEffect(() => {
-    if (needsLoadRef.current && sbRef.current && activeProject) {
+    if (needsLoadRef.current && sbRef.current) {
       needsLoadRef.current = false;
-      loadFromServer();
+      if (activeProject) {
+        loadFromServer();
+      } else {
+        // No active project — list projects from server
+        listProjectsFromServer().then(projects => {
+          if (projects?.length) {
+            dispatch({ type: "LOAD_STATE", data: { projects, activeProject: projects[0].id } });
+            // Then load the first project's full data
+            setTimeout(() => loadFromServer(projects[0].id), 100);
+          }
+        });
+      }
     }
   });
 
