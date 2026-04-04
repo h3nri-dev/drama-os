@@ -4,14 +4,12 @@ import { useState, useEffect, useRef, useCallback, useReducer, useMemo } from "r
 function getSupabaseClient(url, key) {
   // Option 1: npm import already on window (injected by Vite plugin or manual)
   if (window.__supabaseCreateClient) return window.__supabaseCreateClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${key}` } },
+    auth: { persistSession: true, autoRefreshToken: true },
   });
   // Option 2: CDN global
   const mod = window.supabase || window.Supabase;
   if (mod?.createClient) return mod.createClient(url, key, {
-    auth: { persistSession: false, autoRefreshToken: false },
-    global: { headers: { Authorization: `Bearer ${key}` } },
+    auth: { persistSession: true, autoRefreshToken: true },
   });
   return null;
 }
